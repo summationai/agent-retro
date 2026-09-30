@@ -1,0 +1,9 @@
+{
+  "name": "agent-retro",
+  "displayName": "Agent Retro",
+  "version": "1.0.0",
+  "description": "A weekly retro of how you use AI coding agents (Claude Code, Codex, and optional ChatGPT or claude.ai exports): 12 animated slides of stats with four bite-sized, evidence-backed coaching tips.",
+  "author": { "name": "Matt Herz" },
+  "keywords": ["retro", "usage", "stats", "coaching", "prompting"],
+  "license": "MIT"
+}

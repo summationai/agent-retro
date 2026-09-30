@@ -1,0 +1,12 @@
+# Personal data never goes in this repo: decks, run history, raw exports, build folders
+*.html
+*.zip
+runs.jsonl
+*-runs.jsonl
+lenses.md
+coaching-lenses.md
+build*/
+builds/
+*.json.tmp
+.DS_Store
+__pycache__/

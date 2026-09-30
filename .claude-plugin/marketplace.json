@@ -1,0 +1,14 @@
+{
+  "name": "agent-retro",
+  "owner": {
+    "name": "Matt Herz"
+  },
+  "description": "Agent Retro: a weekly look back at how you use AI coding agents, with small coaching tips.",
+  "plugins": [
+    {
+      "name": "agent-retro",
+      "source": "./plugins/agent-retro",
+      "description": "Weekly Agent Retro: 8 fun stats + 4 coaching tips about how you use AI agents, as an animated slide deck."
+    }
+  ]
+}

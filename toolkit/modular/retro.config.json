@@ -1,0 +1,29 @@
+{
+  "packs": {
+    "stats": {
+      "enabled": true,
+      "slides": [
+        8,
+        8
+      ]
+    },
+    "coaching": {
+      "enabled": true,
+      "slides": [
+        4,
+        4
+      ],
+      "placement": "inline",
+      "try_this_week": 3
+    }
+  },
+  "anchors_from": "stats",
+  "window_days": 7,
+  "_notes": {
+    "placement": "section = a 'Level up' section after the stats; inline = each tip follows the stat it cites; both = inline pairs where a cite exists, section for the rest",
+    "slides": "[min, max] rotating slides per pack; anchors (cold open, big number, archetype, outro) are extra",
+    "anchors_from": "which pack supplies the anchor slides; if that pack is disabled, the composer builds a short cold open + outro from what's left",
+    "profile": "default-12 = 8 stats slides (anchors included) + 4 coaching slides, each coaching slide right after the stat it cites; same slot plan as the Agent Retro plugin (agent-retro/plugins/agent-retro/reference/deck-spec.md). Set profile to \"custom\" to use the slide ranges freely."
+  },
+  "profile": "default-12"
+}
