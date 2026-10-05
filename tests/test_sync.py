@@ -1,5 +1,5 @@
 """Drift guards for things that must stay copies of each other."""
-import json, os, re, unittest
+import json, os, re, subprocess, sys, unittest
 
 import support
 
@@ -19,6 +19,9 @@ class SyncTest(unittest.TestCase):
                 blocks = re.findall(r'```python\n(.*?)```', read(*md), re.S)
                 self.assertEqual(len(blocks), 1)
                 self.assertEqual(blocks[0], read(*py), f're-embed {py[-1]} in {md[-1]}')
+
+    def test_portable_bundle_matches_canonical_sources(self):
+        subprocess.run([sys.executable, os.path.join(ROOT, 'tools/build_toolkit.py'), '--check'], check=True, capture_output=True)
 
     def test_plugin_manifests_agree(self):
         claude = json.loads(read('plugins', 'agent-retro', '.claude-plugin', 'plugin.json'))

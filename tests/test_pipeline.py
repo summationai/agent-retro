@@ -99,7 +99,7 @@ class PipelineTest(unittest.TestCase):
         self.run_scripts()
         subprocess.run([sys.executable, cleanup, self.dir], check=True, capture_output=True)
         left = sorted(os.listdir(self.dir))
-        self.assertEqual(left, ['prompts.txt', 'stats.json'])
+        self.assertEqual(left, ['coaching.json', 'prompts.txt', 'stats.json'])
 
 
 if __name__ == '__main__':

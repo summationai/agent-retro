@@ -10,16 +10,16 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from redact import scrub_secrets, scrub_tree, REDACTIONS  # noqa: E402
 from contracts import SCHEMA_VERSION, validate_data
+from io_utils import read_json, write_json, write_text
 
 
 def lt(v):  # local datetime from epoch seconds or ISO
     return datetime.fromtimestamp(v) if isinstance(v, (int, float)) else datetime.fromisoformat(str(v)).astimezone()
 
 
-def main(src, out):
+def measure(d, out):
     REDACTIONS.clear()
-    with open(src) as f:
-        d = validate_data(json.load(f))
+    d = validate_data(d)
     P = sorted((p for p in d['prompts'] if not p.get('is_automation') and p.get('text')), key=lambda p: lt(p['ts']))
     U = d['usage']; T = d.get('tools', []); S = d.get('sessions', {})
     S = list(S.values()) if isinstance(S, dict) else S
@@ -128,15 +128,21 @@ def main(src, out):
     res = scrub_tree(res)
     # a compact, redacted digest of every prompt, for the deck writer to read. Redact before truncating,
     # so a secret that straddles the cut can't leak its first half.
-    with open(os.path.join(os.path.dirname(os.path.abspath(out)), 'prompts.txt'), 'w') as f:
-        for i, p in enumerate(P):
-            f.write(f"[{i}] {lt(p['ts']):%a %m-%d %H:%M} | {scrub_secrets(p['agent'])} | {scrub_secrets(p['project'])} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
+    digest = []
+    for i, p in enumerate(P):
+        digest.append(f"[{i}] {lt(p['ts']):%a %m-%d %H:%M} | {scrub_secrets(p['agent'])} | {scrub_secrets(p['project'])} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
+    write_text(os.path.join(os.path.dirname(os.path.abspath(out)), 'prompts.txt'), ''.join(digest))
     res['redactions'] = dict(REDACTIONS)
-    with open(out, 'w') as f:
-        json.dump(res, f, indent=1)
+    write_json(out, res)
     print(json.dumps(dict(prompts=res['prompts'], tokens=total, agents={a: (v['prompts'], v['tokens']) for a, v in res['agents'].items()},
                           top_project=res['projects'][0]['project'] if res['projects'] else None, repeats=[(r['times'], r['text'][:50]) for r in repeats],
                           handoffs=handoffs, streak=res['longest_streak'], redactions=res['redactions']), indent=1))
+
+    return res
+
+
+def main(src, out):
+    return measure(read_json(src), out)
 
 
 if __name__ == '__main__':

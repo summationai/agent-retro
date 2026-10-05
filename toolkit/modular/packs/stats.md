@@ -4,9 +4,9 @@
 
 ## Data and lenses
 
-Follow **Phases 1–3** of `~/agent-outputs/agent-retro/prompts/retro-prompt-v2.md`. Its extraction rules, memory, honesty rules, fixed anchors, rotating-lens scoring, and "invent one new lens" rule all apply. You can also use the standalone script in `share/retro-paste-in.md`, Appendix B.
-- **Skip v2's Phases 4–5.** The composer handles design and publishing.
-- **Write the data file** that the extraction step produces to `<build>/retro_data.json`. The coaching pack reads it too.
+Read `BUILD/stats.json` and `BUILD/prompts.txt` from canonical preparation. Use the
+stat lens menu, evidence rules, and privacy rules in `plugins/agent-retro/reference/deck-spec.md`.
+Preserve diagnostic coverage labels. Do not read raw transcripts or rerun an older extractor.
 
 ## Output
 
@@ -14,4 +14,4 @@ Write `<build>/cards/stats.json`: one card per slide, in the shared format (`REA
 - **Anchor slides:** `kind: "anchor"`, with ids `stats.cold-open`, `stats.big-number`, `stats.rotation`, `stats.top-projects`, `stats.archetype` and `stats.outro`.
 - **Rotating lenses:** `kind: "stat"`, with ids like `stats.<lens>`.
 - **Chart data:** put the exact numbers the chart needs in `viz.data`, so the composer never recomputes or invents anything.
-- **Memory:** record the lenses you used in the stats memory files, as the original editions do.
+- **Memory:** include each chosen lens in the composed slide's `lens` field; finalization records it.

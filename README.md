@@ -36,7 +36,7 @@ Add `help` for the options: `only=<agents>`, `days=N`, and `chatgpt`, which show
 | `.claude-plugin/`, `.agents/plugins/` | Marketplace listings for Claude Code and Codex. Both point at `plugins/agent-retro/`. |
 | `plugins/agent-retro/` | **The plugin**, with a manifest for each host (`.claude-plugin/`, `.codex-plugin/`). The shared `retro` skill, the deck spec, the ChatGPT guide, and the bundled scripts: extraction, stats, coaching signals, renderer and cleanup. |
 | `toolkit/prompts/` | The prompt-driven versions it grew out of: the v1 (Claude Code only) and v2 (Claude Code, Codex and chat exports) prompts, and the ChatGPT export guides. |
-| `toolkit/share/` | The v2 edition as a single paste-in file, with its extractor embedded. |
+| `toolkit/share/` | Generated portable preparation, with the canonical pipeline embedded. |
 | `toolkit/modular/` | The modular architecture: opt-in content **packs** (stats, coaching) that emit slide cards, plus a **composer** that interleaves them, with a config that sets which packs run and how many slides each gets. |
 
 ## How the coaching works
@@ -62,6 +62,20 @@ Every requested source reports coverage diagnostics, including unreadable files,
 and missing usage. Codex counter totals are converted to window deltas when possible; a missing baseline
 is reported as partial coverage. ChatGPT exports use the active branch when available and keep separate
 branches separate otherwise. Export coverage and self-report flavor are included in redacted stats.
+
+## Pipeline maintenance
+
+`prepare.py` creates a unique private build under `AGENT_RETRO_HOME` (default `~/agent-retro`),
+keeping raw transcripts in memory. After writing `slides.json`, `finalize.py <build>` renders the
+deck and records history once. Output files are private and replaced atomically; history uses a lock.
+
+The plugin scripts are canonical. Modular entry points delegate to them; regenerate the portable
+script and paste-in prompt after changing preparation code:
+
+```sh
+python3 tools/build_toolkit.py
+python3 tools/build_toolkit.py --check
+```
 
 ## Tests
 

@@ -9,6 +9,9 @@ from slides.json, so every number on screen is one the writer put there.
 """
 import html, json, math, os, random, re, sys
 
+from io_utils import read_json, write_text
+from pathlib import Path
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 AGENT = {'claude-code': ('Claude Code', 'var(--claude)'), 'codex': ('Codex', 'var(--codex)'),
          'chatgpt': ('ChatGPT', 'var(--chatgpt)'), 'claude-ai': ('claude.ai', 'var(--claudeai)')}
@@ -311,9 +314,9 @@ JS = r'''
 
 
 def main(src, out):
-    spec = json.load(open(src))
+    spec = read_json(src)
     rng = random.Random(spec.get('seed', 0))
-    base = open(os.path.join(HERE, '_base.css')).read()
+    base = Path(HERE, '_base.css').read_text(encoding='utf-8')
     sections, prev = [], None
     for idx, s in enumerate(spec['slides']):
         bg = pick_bg(s, prev, rng, idx); prev = bg
@@ -332,7 +335,7 @@ def main(src, out):
             '<div class="navbtns"><button id="prev" aria-label="Previous slide">↑</button><button id="next" aria-label="Next slide">↓</button></div>\n'
             '<main id="deck">\n' + '\n'.join(sections) + '\n</main>\n'
             f'<script>{JS}</script>\n')
-    open(out, 'w').write(page)
+    write_text(out, page)
     print(f'rendered {len(sections)} slides → {out} ({len(page):,} bytes)')
 
 

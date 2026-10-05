@@ -4,7 +4,7 @@
 
 ## Default profile: `default-12`
 
-When `profile` is `default-12`, which is the default, use the fixed 12-slot plan from `~/agent-outputs/agent-retro/plugins/agent-retro/reference/deck-spec.md`: 8 stats slides and 4 coaching slides (at least 2 of them wins), with each coaching slide placed right after the stat it cites. You can also render with that plugin's `scripts/render.py`. Use the other placements and slide ranges only when `profile` is `custom`.
+When `profile` is `default-12`, which is the default, use the fixed 12-slot plan from `plugins/agent-retro/reference/deck-spec.md`: 8 stats slides and 4 coaching slides (at least 2 of them wins), with each coaching slide placed right after the stat it cites. You can also render with that plugin's `scripts/render.py`. Use the other placements and slide ranges only when `profile` is `custom`.
 
 ## Order
 
@@ -51,7 +51,8 @@ Respect each pack's `slides` range. If there are more cards than slots, keep the
 
 ## Ship
 
-- **Save the deck** to `~/agent-outputs/agent-retro/retro-modular-YYYY-MM-DD.html`.
-- **Publish** it as a private page titled "Agent Retro, <week range>". If only coaching is on, call it "Agent Retro Level Up, <week range>".
-- **Append the run** to the modular memory file, recording which packs ran, the card ids and scores, and the placement.
-- **Report back in chat:** the link, which packs ran, the slide list grouped by pack, and the 3 "try this week" lines.
+- Convert the selected cards to the component format in the plugin deck spec and write `BUILD/slides.json`.
+- Set `profile` to `default-12` or `custom` to match the config, and preserve each selected card's `lens`.
+- Run `python3 "$PLUGIN_ROOT/scripts/finalize.py" "$BUILD"`. It renders and records history.
+- Publish only the completed HTML as a private page when a suitable tool is available; otherwise provide the local file.
+- Report the link or path, included packs, source coverage limitations, and the grounded things to try.

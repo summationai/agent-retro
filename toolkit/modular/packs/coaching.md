@@ -12,8 +12,7 @@
 
 ## Evidence rules
 
-1. **Run the signals** on the data file the entry prompt gives you:
-   `python3 ~/agent-outputs/agent-retro/modular/coaching_signals.py <data.json> <build>/coaching_signals.json`
+1. **Read `BUILD/coaching.json`** from canonical preparation; its rows are already redacted.
    For every prompt, it reads the reaction of the *next* message in the same session:
    - `praise`, `proceed`: it worked
    - `correct`: an extra round-trip
@@ -76,4 +75,4 @@ Use these to explain *why* something worked or how to make it even better. Plain
 
 ## Output
 
-Write `<build>/cards/coaching.json`: an array of cards in the shared format (see `README.md`), with a score on each card. Then append the lenses you used to the memory file.
+Write `<build>/cards/coaching.json`: an array of cards in the shared format (see `README.md`), with a score on each card. Include lens ids in the final slides; finalization records history.

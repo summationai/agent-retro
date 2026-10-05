@@ -20,6 +20,7 @@ from typing import NamedTuple
 
 from contracts import AGENTS, SCHEMA_VERSION, prompt_id
 from redact import scrub_tree
+from io_utils import write_json
 
 EXPORT_PROJECT = {'chatgpt': 'ChatGPT', 'claude-ai': 'claude.ai'}
 INJECTED = ('<', '# AGENTS.md', 'The following is the Codex agent history')
@@ -582,11 +583,7 @@ def main(argv=None):
     except ValueError as exc:
         parser.error(str(exc))
     data = extract(settings)
-    # Exclusive permissions even when the caller has a permissive umask.
-    fd = os.open(args.out, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, 'w', encoding='utf-8') as f:
-        os.fchmod(f.fileno(), 0o600)
-        json.dump(data, f)
+    write_json(args.out, data)
     print(json.dumps(scrub_tree(dict(sources=data['sources'], diagnostics=data['diagnostics'])), indent=1))
 
 
