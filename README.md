@@ -36,7 +36,7 @@ Add `help` for the options: `only=<agents>`, `days=N`, and `chatgpt`, which show
 | `.claude-plugin/`, `.agents/plugins/` | Marketplace listings for Claude Code and Codex. Both point at `plugins/agent-retro/`. |
 | `plugins/agent-retro/` | **The plugin**, with a manifest for each host (`.claude-plugin/`, `.codex-plugin/`). The shared `retro` skill, the deck spec, the ChatGPT guide, and the bundled scripts: extraction, stats, coaching signals, renderer and cleanup. |
 | `toolkit/prompts/` | The prompt-driven versions it grew out of: the v1 (Claude Code only) and v2 (Claude Code, Codex and chat exports) prompts, and the ChatGPT export guides. |
-| `toolkit/share/` | Generated portable preparation, with the canonical pipeline embedded. |
+| `toolkit/share/` | Generated portable preparation and rendering, with the canonical pipeline embedded. |
 | `toolkit/modular/` | The modular architecture: opt-in content **packs** (stats, coaching) that emit slide cards, plus a **composer** that interleaves them, with a config that sets which packs run and how many slides each gets. |
 
 ## How the coaching works
@@ -79,13 +79,30 @@ python3 tools/build_toolkit.py --check
 
 ## Tests
 
-Standard library only, Python 3.9+:
+The core suite uses only the standard library, Python 3.9+:
 
 ```
 python3 -m unittest discover -s tests
 ```
 
-The suite runs every pipeline on synthetic data, so it never touches your own logs. It checks that no planted secret reaches any output, covers extraction and rendering, and verifies that copied code (the script embedded in the paste-in prompt, and the two plugin manifests) hasn't drifted.
+The suite uses synthetic data and never reads your own logs. It covers all four sources, redaction
+of prompts and metadata, coaching correctness, deck validation, preparation failures, concurrent history
+writes, and generated-toolkit drift. CI runs it on Python 3.9, 3.12, and 3.14.
+
+Optional Chromium tests exercise all components, mobile footnotes, keyboard controls, reduced motion,
+and animations with font requests blocked. Install these development-only dependencies in a virtual environment:
+
+```sh
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
+RETRO_BROWSER_TESTS=1 python -m unittest discover -s tests -p test_browser.py -v
+```
+
+The runtime remains standard-library only. Browser tests also run in CI.
+
+Decks use a validated 12-slot profile when evidence is sufficient. Small samples get a shorter
+`limited` profile with no coaching claims or archetype. Coaching confidence uses both comparison groups,
+and every prompt has a stable ID shared by the digest and coaching evidence.
 
 ## License
 

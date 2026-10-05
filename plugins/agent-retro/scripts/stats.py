@@ -1,4 +1,4 @@
-"""Agent Retro standard stats. Version: retro-2026-09-30
+"""Agent Retro standard stats. Version: retro-2026-10-05
 
 Usage: python3 stats.py <data.json> <out.json>
 <data.json> is the extractor output (prompts, usage, sessions, tools). Everything here is deterministic;
@@ -9,18 +9,18 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from redact import scrub_secrets, scrub_tree, REDACTIONS  # noqa: E402
-from contracts import SCHEMA_VERSION, validate_data
+from contracts import SCHEMA_VERSION, validate_data, identify_prompts
 from io_utils import read_json, write_json, write_text
 
 
 def lt(v):  # local datetime from epoch seconds or ISO
-    return datetime.fromtimestamp(v) if isinstance(v, (int, float)) else datetime.fromisoformat(str(v)).astimezone()
+    return (datetime.fromtimestamp(v) if isinstance(v, (int, float)) else datetime.fromisoformat(str(v).replace('Z', '+00:00'))).astimezone()
 
 
 def measure(d, out):
     REDACTIONS.clear()
     d = validate_data(d)
-    P = sorted((p for p in d['prompts'] if not p.get('is_automation') and p.get('text')), key=lambda p: lt(p['ts']))
+    P = sorted(identify_prompts([p for p in d['prompts'] if not p.get('is_automation') and p.get('text')]), key=lambda p: (lt(p['ts']), p['id']))
     U = d['usage']; T = d.get('tools', []); S = d.get('sessions', {})
     S = list(S.values()) if isinstance(S, dict) else S
     tok = lambda u: u['fresh_input'] + u['cache_read'] + u['cache_write'] + u['output']
@@ -91,7 +91,7 @@ def measure(d, out):
 
     seq = [p['agent'] for p in P]
     handoffs = sum(1 for i in range(1, len(seq)) if seq[i] != seq[i - 1])
-    streak, best = 1, (1, seq[0] if seq else None)
+    streak, best = 1, (1 if seq else 0, seq[0] if seq else None)
     for i in range(1, len(seq)):
         streak = streak + 1 if seq[i] == seq[i - 1] else 1
         if streak > best[0]:
@@ -130,7 +130,7 @@ def measure(d, out):
     # so a secret that straddles the cut can't leak its first half.
     digest = []
     for i, p in enumerate(P):
-        digest.append(f"[{i}] {lt(p['ts']):%a %m-%d %H:%M} | {scrub_secrets(p['agent'])} | {scrub_secrets(p['project'])} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
+        digest.append(f"[{p['id']}] {lt(p['ts']):%a %m-%d %H:%M} | {scrub_secrets(p['agent'])} | {scrub_secrets(p['project'])} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
     write_text(os.path.join(os.path.dirname(os.path.abspath(out)), 'prompts.txt'), ''.join(digest))
     res['redactions'] = dict(REDACTIONS)
     write_json(out, res)

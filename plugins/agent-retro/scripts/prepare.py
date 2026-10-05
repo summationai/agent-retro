@@ -16,6 +16,22 @@ from io_utils import private_directory, write_json
 from redact import scrub_tree
 
 
+def limited_deck(measured, seed):
+    partial = any(d['status'] == 'partial' for d in measured['diagnostics'].values())
+    estimated = any(a['estimated'] for a in measured['agents'].values())
+    qualifiers = ('Some sources are incomplete. ' if partial else '') + ('Export token counts are estimates. ' if estimated else '')
+    prompts = measured['prompts']
+    tokens = str(measured['tokens']['total']) + (' (partial)' if partial else '') + (' (includes estimates)' if estimated else '')
+    if not measured['tokens']['total'] and any('usage_unavailable' in d['issues'] for d in measured['diagnostics'].values()):
+        tokens = 'Unavailable'
+    return dict(title='Agent Retro — brief recap', profile='limited', seed=seed, slides=[
+        dict(type='cold', big=str(prompts), headline='No human prompts in this window' if not prompts else 'An early look at your week',
+             lede='The available sample supports a brief recap.', small=qualifiers + 'There is not enough evidence for coaching tips.'),
+        dict(type='outro', title='Your available activity', facts=[dict(label='Human prompts', value=prompts),
+             dict(label='Measured tokens', value=tokens)], tries=[],
+             footer=qualifiers + 'Coaching reactions are proxies. This sample is too small for reliable tips.')])
+
+
 def prepare(settings, retro_home, seed=None):
     home = private_directory(retro_home)
     builds = private_directory(home / 'builds')
@@ -27,8 +43,12 @@ def prepare(settings, retro_home, seed=None):
     try:
         data = extract(settings)
         measured = stats.measure(data, build / 'stats.json')
-        coaching_signals.measure(data, build / 'coaching.json')
-        run.update(status='ready', sources=measured['sources'], window=measured['window'])
+        coaching = coaching_signals.measure(data, build / 'coaching.json')
+        limited = measured['prompts'] < 8 or coaching['summary']['judged'] < 8
+        if limited:
+            write_json(build / 'slides.json', limited_deck(measured, run['seed']))
+        run.update(status='ready', sources=measured['sources'], window=measured['window'],
+                   presentation_profile='limited' if limited else 'default-12')
         write_json(build / 'run.json', scrub_tree(run))
     except BaseException:
         # No raw files exist, including on interruption. Incomplete builds cannot be finalized.

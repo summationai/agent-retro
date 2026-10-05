@@ -38,7 +38,7 @@ class PrepareTest(unittest.TestCase):
             return prepare.prepare(self.settings,self.retro,seed=7)
 
     def slides(self, build):
-        write_json(build/'slides.json',dict(title='Synthetic',profile='custom',slides=[dict(type='cold',big='1',headline='Synthetic week')]))
+        write_json(build/'slides.json',dict(title='Synthetic',profile='limited',slides=[dict(type='cold',big='1',headline='Synthetic week')]))
 
     def test_private_builds_are_unique_and_never_contain_raw_data(self):
         first,second = self.run_prepare(),self.run_prepare()
@@ -50,6 +50,24 @@ class PrepareTest(unittest.TestCase):
             for path in build.iterdir():
                 self.assertEqual(path.stat().st_mode & 0o777,0o600)
                 self.assertNotIn(self.secret,path.read_text())
+
+    def test_insufficient_data_gets_a_valid_short_deck(self):
+        build = self.run_prepare()
+        spec = json.loads((build / 'slides.json').read_text())
+        self.assertEqual(spec['profile'], 'limited')
+        self.assertFalse(any(s['type'] in ('coach', 'archetype') for s in spec['slides']))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(finalize.finalize(build).exists())
+
+    def test_limited_build_cannot_force_full_coaching(self):
+        build = self.run_prepare()
+        self.slides(build)
+        spec = json.loads((build / 'slides.json').read_text())
+        spec['profile'] = 'custom'
+        write_json(build / 'slides.json', spec)
+        with self.assertRaisesRegex(ValueError, 'insufficient data'):
+            finalize.finalize(build)
+        self.assertFalse((self.retro / 'runs.jsonl').exists())
 
     def test_failure_and_interruption_leave_no_raw_files(self):
         for failure in [RuntimeError('synthetic error'),KeyboardInterrupt()]:
@@ -115,6 +133,8 @@ class PrepareTest(unittest.TestCase):
         self.assertFalse((build/'data.json').exists())
         for path in build.iterdir():
             self.assertNotIn(self.secret,path.read_text())
+        subprocess.run([sys.executable,str(portable),'--finalize',str(build)],check=True,capture_output=True)
+        self.assertEqual(len(list(output.glob('retro-*.html'))),1)
         raw=Path(self.tmp.name)/'raw.json'
         support.data_file(raw,support.prompt_rows(['password='+self.secret+' fix this']*2))
         for module in ['stats','coaching_signals']:

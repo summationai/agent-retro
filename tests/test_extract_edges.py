@@ -2,6 +2,7 @@
 import json
 import os
 import shutil
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -159,6 +160,23 @@ class ExtractEdgesTest(unittest.TestCase):
         for kwargs in [dict(days=0),dict(days=-1),dict(days='x'),dict(sources='unknown'),dict(now=float('nan'))]:
             with self.subTest(kwargs=kwargs),self.assertRaises(ValueError):
                 config(**kwargs)
+
+    def test_real_worktrees_fold_into_their_main_project(self):
+        with tempfile.TemporaryDirectory(prefix='.test-repo-', dir=support.ROOT) as root:
+            root = Path(root)
+            repo, worktree = root / 'main-project', root / 'checkout'
+            repo.mkdir()
+            env = dict(os.environ, HOME=str(self.home), GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
+            def git(*args):
+                subprocess.run(['git', '-C', str(repo), *args], env=env, check=True, capture_output=True)
+            git('init')
+            (repo / 'example.txt').write_text('synthetic')
+            git('add', 'example.txt')
+            git('-c', 'user.name=Retro Test', '-c', 'user.email=retro@example.org', 'commit', '-m', 'fixture')
+            git('worktree', 'add', '--detach', str(worktree))
+            reader = Extractor(config(str(self.home), NOW))
+            self.assertEqual(reader.locate(str(repo)), ('main-project', 'main-project'))
+            self.assertEqual(reader.locate(str(worktree)), ('main-project', 'checkout'))
 
     def test_instances_do_not_share_state(self):
         self.codex([user('first')])

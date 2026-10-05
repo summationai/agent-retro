@@ -34,6 +34,8 @@ In Claude Code, run `/retro` (or `/agent-retro:retro` if another plugin also has
 | `chatgpt` | Ways to add your ChatGPT history, with prompts you can paste |
 | `help` | Show the options |
 
+With fewer than eight human prompts or eight judged reactions, you get a short factual recap with no coaching or archetype.
+
 It takes a few minutes. You get a private link if your agent can publish pages, or a local HTML file otherwise. Everything is saved in `~/agent-retro/`, so next week's Retro can compare against this one and rotate in new slides. Set `AGENT_RETRO_HOME` to use a different folder.
 
 If Codex's sandbox blocks reading `~/.claude`, `~/.codex` or `~/Downloads`, or writing to `~/agent-retro`, approve the request when it asks. The Retro needs those folders to count your week and remember past ones.

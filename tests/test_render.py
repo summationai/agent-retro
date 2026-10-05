@@ -13,7 +13,7 @@ class RenderTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             spec, out = os.path.join(d, 'slides.json'), os.path.join(d, 'deck.html')
             with open(spec, 'w') as f:
-                json.dump(dict(title='Agent Retro, Sep 22–29', brand='Agent Retro', seed=7, slides=slides), f)
+                json.dump(dict(title='Agent Retro, Sep 22–29', profile='custom', brand='Agent Retro', seed=7, slides=slides), f)
             subprocess.run([sys.executable, RENDER, spec, out], check=True, capture_output=True)
             with open(out) as f:
                 return f.read()
@@ -48,6 +48,15 @@ class RenderTest(unittest.TestCase):
                                  dict(label='y', value=10, color='var(--fg)')], 'test')
         self.assertIn('width:0.00%', html)
         self.assertIn('width:100.00%', html)
+
+    def test_every_component_renders(self):
+        from deck_fixtures import components
+        slides = components()
+        slides += [dict(slides[9], stat=dict(type='compare', rows=[dict(label='Sample', pct=50)])),
+                   dict(slides[9], stat=dict(type='number', value=2, label='Moments'))]
+        html = self.render(slides)
+        self.assertEqual(len(re.findall(r'<section\b', html)), len(slides))
+        self.assertIn('<!doctype html>', html)
 
     def test_brand_and_slide_count(self):
         html = self.render([dict(type='cold', big=str(i), headline='h') for i in range(12)])

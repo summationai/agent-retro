@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 
 import render
+from deck_schema import validate_deck
 from io_utils import read_json, write_json, write_text
 from redact import scrub_tree
 
@@ -27,11 +28,15 @@ def finalize(build):
         return out
     spec = read_json(build / 'slides.json')
     spec['seed'] = run['seed']
+    stats = read_json(build / 'stats.json')
+    coaching_data = read_json(build / 'coaching.json')
+    validate_deck(spec, dict(stats=stats, coaching=coaching_data))
+    if run.get('presentation_profile') == 'limited' and spec.get('profile', 'default-12') != 'limited':
+        raise ValueError('this build has insufficient data; use the limited profile')
     # Rendering must succeed before either history or completion state is changed.
     write_json(build / 'slides.json', spec)
     render.main(build / 'slides.json', out)
-    stats = read_json(build / 'stats.json')
-    coaching = read_json(build / 'coaching.json')['summary']
+    coaching = coaching_data['summary']
     outro = next((s for s in spec['slides'] if s['type'] == 'outro'), {})
     entry = scrub_tree(dict(schema_version=1, run_id=run['run_id'], date=build.name[:10], window=run['window'],
                             seed=run['seed'], sources=run['sources'],

@@ -41,7 +41,7 @@ python3 "$PLUGIN_ROOT/scripts/prepare.py" --retro-home "$RETRO_HOME"
 
 ## 4. Write the deck
 Follow `PLUGIN_ROOT/reference/deck-spec.md` exactly. It defines the 12 slots, the lens and coaching menus, the tone, honesty and privacy rules, and the `slides.json` component formats.
-- Write `BUILD/slides.json`.
+- Read `run.json`'s `presentation_profile`. Refine the generated short deck for limited data, or write the full `BUILD/slides.json` when evidence is sufficient. Add measured evidence references to coaching slides; use computed feature confidence labels.
 - Before rendering, re-read every headline, quote and try line against the spec's tone and privacy rules. Check that every number traces back to `stats.json`, `coaching.json`, or a count you made from the data.
 
 ## 5. Render, save and share
