@@ -8,7 +8,9 @@ The scripts that read your history and compute the stats run on your machine, an
 
 ## Quick start: the Agent Retro plugin
 
-In Claude Code:
+One plugin, two hosts.
+
+**Claude Code**
 
 ```
 /plugin marketplace add summationai/agent-retro
@@ -16,13 +18,23 @@ In Claude Code:
 /retro
 ```
 
-`/retro help` lists the options: `only=<agent>`, `days=N`, and `chatgpt`, which shows how to add ChatGPT history. See [PLUGIN.md](PLUGIN.md) for details.
+**Codex / ChatGPT** (the Codex CLI, or Codex in the ChatGPT desktop app)
+
+```
+codex plugin marketplace add summationai/agent-retro
+codex plugin add agent-retro@agent-retro
+```
+
+Then ask Codex to "build my Agent Retro" (or mention `$agent-retro:retro`).
+
+Add `help` for the options: `only=<agents>`, `days=N`, and `chatgpt`, which shows how to add ChatGPT history. See [PLUGIN.md](PLUGIN.md) for details.
 
 ## What's in here
 
 | Path | What it is |
 |---|---|
-| `.claude-plugin/`, `plugins/agent-retro/` | **The plugin.** The `/retro` command, the deck spec, the ChatGPT guide, and the bundled scripts: extraction, stats, coaching signals, renderer and cleanup. |
+| `.claude-plugin/`, `.agents/plugins/` | Marketplace listings for Claude Code and Codex. Both point at `plugins/agent-retro/`. |
+| `plugins/agent-retro/` | **The plugin**, with a manifest for each host (`.claude-plugin/`, `.codex-plugin/`). The shared `retro` skill, the deck spec, the ChatGPT guide, and the bundled scripts: extraction, stats, coaching signals, renderer and cleanup. |
 | `toolkit/prompts/` | The prompt-driven versions it grew out of: the v1 (Claude Code only) and v2 (Claude Code, Codex and chat exports) prompts, and the ChatGPT export guides. |
 | `toolkit/share/` | The v2 edition as a single paste-in file, with its extractor embedded. |
 | `toolkit/modular/` | The modular architecture: opt-in content **packs** (stats, coaching) that emit slide cards, plus a **composer** that interleaves them, with a config that sets which packs run and how many slides each gets. |
@@ -47,7 +59,7 @@ Standard library only, Python 3.9+:
 python3 -m unittest discover -s tests
 ```
 
-The suite runs every pipeline on synthetic data, so it never touches your own logs. It checks that no planted secret reaches any output, covers extraction and rendering, and verifies that the script embedded in the paste-in prompt hasn't drifted from its source.
+The suite runs every pipeline on synthetic data, so it never touches your own logs. It checks that no planted secret reaches any output, covers extraction and rendering, and verifies that copied code (the script embedded in the paste-in prompt, and the two plugin manifests) hasn't drifted.
 
 ## License
 

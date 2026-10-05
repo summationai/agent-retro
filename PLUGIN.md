@@ -4,28 +4,39 @@ A weekly look back at how you use AI coding agents. It's 12 animated slides: **8
 
 ## Install
 
-In Claude Code:
+The same plugin folder works in Claude Code and in Codex (the Codex CLI, or Codex in the ChatGPT desktop app). Each install step takes a local folder (such as `~/Downloads/agent-retro`), a GitHub `owner/repo`, or a git URL.
+
+**Claude Code**
 
 ```
 /plugin marketplace add <path-or-git-url-of-this-folder>
 /plugin install agent-retro@agent-retro
 ```
 
-The first line takes a local folder (such as `~/Downloads/agent-retro`) or a git repository that contains this folder. From a terminal, the same two steps are `claude plugin marketplace add …` and then `claude plugin install agent-retro@agent-retro`.
+From a terminal, the same two steps are `claude plugin marketplace add …` and `claude plugin install agent-retro@agent-retro`.
+
+**Codex / ChatGPT**
+
+```
+codex plugin marketplace add <path-or-git-url-of-this-folder>
+codex plugin add agent-retro@agent-retro
+```
 
 ## Use
 
-| Command | What it does |
-|---|---|
-| `/retro` | Build this week's Retro from every source it finds: Claude Code and Codex logs on your machine, plus any ChatGPT or claude.ai export in `~/Downloads` |
-| `/retro only=codex` | Use only the listed sources (comma-separated: `claude-code`, `codex`, `chatgpt`, `claude-ai`) |
-| `/retro days=14` | Look back 14 days instead of 7 |
-| `/retro chatgpt` | Ways to add your ChatGPT history, with prompts you can paste |
-| `/retro help` | Show the options |
+In Claude Code, run `/retro` (or `/agent-retro:retro` if another plugin also has a `/retro`). In Codex, ask for it ("build my Agent Retro") or mention the skill, `$agent-retro:retro`. Options go after the command or in the same message:
 
-If another plugin also has a `/retro` command, use `/agent-retro:retro`.
+| Option | What it does |
+|---|---|
+| *(none)* | Build this week's Retro from every source it finds: Claude Code and Codex logs on your machine, plus any ChatGPT or claude.ai export in `~/Downloads` |
+| `only=codex` | Use only the listed sources (comma-separated: `claude-code`, `codex`, `chatgpt`, `claude-ai`) |
+| `days=14` | Look back 14 days instead of 7 |
+| `chatgpt` | Ways to add your ChatGPT history, with prompts you can paste |
+| `help` | Show the options |
 
 It takes a few minutes. You get a private link if your agent can publish pages, or a local HTML file otherwise. Everything is saved in `~/agent-retro/`, so next week's Retro can compare against this one and rotate in new slides. Set `AGENT_RETRO_HOME` to use a different folder.
+
+If Codex's sandbox blocks reading `~/.claude`, `~/.codex` or `~/Downloads`, or writing to `~/agent-retro`, approve the request when it asks. The Retro needs those folders to count your week and remember past ones.
 
 ## Privacy
 

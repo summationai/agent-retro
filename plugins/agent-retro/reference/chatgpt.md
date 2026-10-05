@@ -1,6 +1,6 @@
 # Adding ChatGPT (and Codex) to your Retro
 
-**Codex needs nothing.** If you use Codex on this machine, the Retro reads `~/.codex` automatically. To leave it out, run `/retro only=claude-code`.
+**Codex needs nothing.** If you use Codex on this machine, the Retro reads `~/.codex` automatically. To leave it out, run the Retro with `only=claude-code`.
 
 **ChatGPT is optional.** ChatGPT keeps your history on OpenAI's servers, not on your Mac, so the Retro can only include it once you've exported it. There are three ways, from most to least complete.
 
@@ -14,7 +14,7 @@ The export includes your whole history, and the Retro uses only the last 7 days.
 
 ## 2. Have Codex build the file for you (quickest)
 
-If you have **Codex in the ChatGPT desktop app**, it can read your ChatGPT history with the app's own tools. Paste this into a new Codex chat:
+If you have **Codex in the ChatGPT desktop app**, it can read your ChatGPT history with the app's own tools. Paste this into a new Codex chat, then run the Retro:
 
 ```text
 Create a ChatGPT history file for my Agent Retro now. This is a file-generation task: do it, don't explain how.
