@@ -9,6 +9,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from redact import scrub_secrets, scrub_tree, REDACTIONS  # noqa: E402
+from contracts import SCHEMA_VERSION, validate_data
 
 
 def lt(v):  # local datetime from epoch seconds or ISO
@@ -18,7 +19,7 @@ def lt(v):  # local datetime from epoch seconds or ISO
 def main(src, out):
     REDACTIONS.clear()
     with open(src) as f:
-        d = json.load(f)
+        d = validate_data(json.load(f))
     P = sorted((p for p in d['prompts'] if not p.get('is_automation') and p.get('text')), key=lambda p: lt(p['ts']))
     U = d['usage']; T = d.get('tools', []); S = d.get('sessions', {})
     S = list(S.values()) if isinstance(S, dict) else S
@@ -32,6 +33,7 @@ def main(src, out):
     total = sum(tok(u) for u in U)
     by_agent = {a: dict(tokens=sum(tok(u) for u in U if u['agent'] == a), output=sum(u['output'] for u in U if u['agent'] == a),
                         estimated=any(u.get('estimated') for u in U if u['agent'] == a),
+                        usage_status=d.get('diagnostics', {}).get(a, {}).get('status', 'unverified'),
                         prompts=sum(p['agent'] == a for p in P),
                         sessions=len({p['session'] for p in P if p['agent'] == a}),
                         surfaces=dict(collections.Counter(p.get('surface') for p in P if p['agent'] == a)))
@@ -104,7 +106,9 @@ def main(src, out):
                       for s in S if isinstance(s.get('first'), (int, float)))[-3:]
 
     res = dict(
-        version='stats-2026-09-30', sources=d.get('sources'), codex_check=d.get('codex_check'),
+        schema_version=SCHEMA_VERSION, version='stats-2026-10-05', sources=d.get('sources'), codex_check=d.get('codex_check'),
+        diagnostics=d.get('diagnostics', {}), provenance=d.get('provenance', {}),
+        self_report=dict(flavor_only=True, content=d['self_report']) if d.get('self_report') else None,
         window=dict(start=str(lt(d['cut'])), end=str(lt(d['generated']))) if 'cut' in d else None,
         tokens=dict(total=total, by_type=dict(by_type), cache_read_share=round(by_type['cache_read'] / max(1, by_type['cache_read'] + by_type['fresh_input'] + by_type['cache_write']), 4)),
         agents=by_agent, models={m: dict(v) for m, v in sorted(models.items(), key=lambda x: -x[1]['tokens'])},

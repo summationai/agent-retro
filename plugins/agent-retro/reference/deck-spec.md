@@ -85,6 +85,8 @@ Work from `coaching.json` (the summary plus per-prompt rows) and the prompts the
   - Every number must come from `stats.json`, `coaching.json`, or a count you make from the data files. Never invent one.
   - No population percentiles ("top 10% of users"). Compare to your own past weeks, a named baseline, or obviously playful framing.
   - Token counts differ across vendors, so say so in small print wherever you compare them.
+  - Read `stats.diagnostics` and `stats.provenance`. A source marked `partial` has incomplete measurements; label its totals as partial. `usage_unavailable` means unknown usage, never zero activity.
+  - Preserve source coverage labels, including "app history, may be incomplete". Self-report content is flavor only and never supports a number.
   - Coaching signals are proxies (your next message's reaction). The outro footer says so.
 - **Privacy:**
   - Quotes are 12 words or fewer.

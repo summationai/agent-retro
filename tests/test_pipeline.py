@@ -83,6 +83,18 @@ class PipelineTest(unittest.TestCase):
             self.assertNotIn(secret, output)
             self.assertNotIn(email, output)
 
+    def test_self_report_and_coverage_reach_safe_outputs(self):
+        d = json.loads(read(self.data))
+        d['self_report'] = dict(one_surprising_observation='hello audit@example.org')
+        d['provenance'] = dict(chatgpt=dict(coverage=dict(source='app history', scope_note='partial')))
+        with open(self.data, 'w') as f:
+            json.dump(d, f)
+        self.run_scripts()
+        result = json.loads(read(self.dir, 'stats.json'))
+        self.assertTrue(result['self_report']['flavor_only'])
+        self.assertEqual(result['self_report']['content']['one_surprising_observation'], 'hello [email]')
+        self.assertEqual(result['provenance']['chatgpt']['coverage']['scope_note'], 'partial')
+
     def test_cleanup_removes_raw_files_only(self):
         self.run_scripts()
         subprocess.run([sys.executable, cleanup, self.dir], check=True, capture_output=True)

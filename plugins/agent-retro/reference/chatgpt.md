@@ -10,7 +10,7 @@
 2. An email arrives with a download link. It usually takes a few minutes, and the link expires after about 24 hours.
 3. Save the zip to `~/Downloads`. Don't rename or unzip it. The Retro recognizes it by what's inside.
 
-The export includes your whole history, and the Retro uses only the last 7 days. ChatGPT has no token counts, so the Retro estimates them and labels them as estimates.
+The export includes your whole history, and the Retro uses only the selected window (7 days by default). ChatGPT has no token counts, so the Retro estimates them and labels them as estimates.
 
 ## 2. Have Codex build the file for you (quickest)
 

@@ -51,6 +51,18 @@ After each prompt, the tool reads your *next* message. "OK, now…", "let's buil
 
 Requires macOS or Linux, with `python3` available.
 
+## Extraction and coverage
+
+The extractor has no import-time side effects. Its CLI accepts `--home`, `--now` (epoch seconds),
+`--days`, `--sources`, and repeatable `--export <path>` arguments for reproducible runs and explicit exports.
+The plugin also supports `RETRO_DAYS` and `RETRO_SOURCES`. Normalized records use `schema_version: 1`
+and stable prompt IDs shared by downstream measurements.
+
+Every requested source reports coverage diagnostics, including unreadable files, malformed records,
+and missing usage. Codex counter totals are converted to window deltas when possible; a missing baseline
+is reported as partial coverage. ChatGPT exports use the active branch when available and keep separate
+branches separate otherwise. Export coverage and self-report flavor are included in redacted stats.
+
 ## Tests
 
 Standard library only, Python 3.9+:
