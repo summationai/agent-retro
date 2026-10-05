@@ -63,3 +63,24 @@ def scrub_secrets(text):
         if hits:
             REDACTIONS[name] += len(hits)
     return text
+
+
+def scrub_tree(value):
+    """Sanitize all text at a serialization boundary, including mapping keys.
+
+    Keep colliding redacted labels distinct so privacy never silently drops data.
+    Metrics must be computed on raw data before calling this function.
+    """
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            safe = scrub_secrets(key)
+            label, suffix = safe, 2
+            while label in result:
+                label = f'{safe} ({suffix})'
+                suffix += 1
+            result[label] = scrub_tree(item)
+        return result
+    if isinstance(value, (list, tuple)):
+        return [scrub_tree(item) for item in value]
+    return scrub_secrets(value)

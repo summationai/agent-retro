@@ -8,7 +8,7 @@ import json, os, re, sys, collections, statistics
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from redact import scrub_secrets, REDACTIONS  # noqa: E402
+from redact import scrub_secrets, scrub_tree, REDACTIONS  # noqa: E402
 
 
 def lt(v):  # local datetime from epoch seconds or ISO
@@ -16,6 +16,7 @@ def lt(v):  # local datetime from epoch seconds or ISO
 
 
 def main(src, out):
+    REDACTIONS.clear()
     with open(src) as f:
         d = json.load(f)
     P = sorted((p for p in d['prompts'] if not p.get('is_automation') and p.get('text')), key=lambda p: lt(p['ts']))
@@ -68,7 +69,11 @@ def main(src, out):
     original = lambda t: next(p['text'] for p in P if norm(p['text']) == t)
     repeats = [dict(text=scrub_secrets(original(t))[:200], times=n, agents=sorted({p['agent'] for p in P if norm(p['text']) == t})) for t, n in rep.most_common(5) if n >= 2]
 
-    first = collections.Counter(re.sub(r"[^a-z']", '', p['text'].split()[0].lower()) for p in P if p['text'].split())
+    # Redact before stripping punctuation/case, which can disguise credentials.
+    openers = [scrub_secrets(p['text']).split()[0] for p in P if p['text'].split()]
+    first = collections.Counter(re.sub(r"[^a-z']", '', word.lower()) for word in openers
+                                if not any(marker in word for marker in ('[redacted', '[email]', '[phone]')))
+    first.pop('', None)
     voice = {}
     for a in agents:
         ps = [p for p in P if p['agent'] == a]
@@ -116,16 +121,17 @@ def main(src, out):
         subagent_token_share=round(side / max(1, total), 4), top_tools=tool_counts.most_common(12), mcp_servers=mcp.most_common(8),
         skills=skills.most_common(8), most_edited_files=files.most_common(5), branches=branches.most_common(8), longest_sessions=sess_len,
     )
+    res = scrub_tree(res)
     # a compact, redacted digest of every prompt, for the deck writer to read. Redact before truncating,
     # so a secret that straddles the cut can't leak its first half.
     with open(os.path.join(os.path.dirname(os.path.abspath(out)), 'prompts.txt'), 'w') as f:
         for i, p in enumerate(P):
-            f.write(f"[{i}] {lt(p['ts']):%a %m-%d %H:%M} | {p['agent']} | {p['project']} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
+            f.write(f"[{i}] {lt(p['ts']):%a %m-%d %H:%M} | {scrub_secrets(p['agent'])} | {scrub_secrets(p['project'])} | {len(p['text'].split())}w | {scrub_secrets(p['text'])[:400].replace(chr(10), ' / ')}\n")
     res['redactions'] = dict(REDACTIONS)
     with open(out, 'w') as f:
         json.dump(res, f, indent=1)
-    print(json.dumps(dict(prompts=res['prompts'], tokens=total, agents={a: (v['prompts'], v['tokens']) for a, v in by_agent.items()},
-                          top_project=projects[0]['project'] if projects else None, repeats=[(r['times'], r['text'][:50]) for r in repeats],
+    print(json.dumps(dict(prompts=res['prompts'], tokens=total, agents={a: (v['prompts'], v['tokens']) for a, v in res['agents'].items()},
+                          top_project=res['projects'][0]['project'] if res['projects'] else None, repeats=[(r['times'], r['text'][:50]) for r in repeats],
                           handoffs=handoffs, streak=res['longest_streak'], redactions=res['redactions']), indent=1))
 
 

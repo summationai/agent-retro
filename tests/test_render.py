@@ -1,9 +1,10 @@
 """render.py: deck text is HTML-escaped, and the deck is self-contained."""
-import json, os, re, subprocess, sys, tempfile, unittest
+import json, os, random, re, subprocess, sys, tempfile, unittest
 
 import support
 
 RENDER = os.path.join(support.SCRIPTS, 'render.py')
+renderer = support.load(RENDER, 'test_renderer')
 EVIL = '<script>alert(1)</script><img src=x onerror=alert(2)>'
 
 
@@ -28,6 +29,25 @@ class RenderTest(unittest.TestCase):
         self.assertNotIn('<script>alert', html)
         self.assertNotIn('<img src=x', html)
         self.assertIn('&lt;script&gt;alert(1)&lt;/script&gt;', html)
+
+    def test_chart_attributes_reject_injection_and_invalid_numbers(self):
+        for pct in [EVIL, '50', -1, 101, float('nan'), float('inf'), True]:
+            with self.subTest(pct=pct), self.assertRaises(ValueError):
+                renderer.compare_rows([dict(label='x', pct=pct)])
+        for color in [EVIL, 'red; background:url(https://example.org)', 'var(--unknown)']:
+            with self.subTest(color=color), self.assertRaises(ValueError):
+                renderer.seg_bar([dict(label='x', value=1, color=color)], '')
+        for value in [-1, float('nan'), float('inf'), '1']:
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                renderer.seg_bar([dict(label='x', value=value)], '')
+        with self.assertRaises(ValueError):
+            renderer.render_slide(dict(type='heatmap', days=[], cells={}, hours=[EVIL]), random.Random(1))
+
+    def test_supported_colors_and_zero_segments(self):
+        html = renderer.seg_bar([dict(label='x', value=0, color='#abc'),
+                                 dict(label='y', value=10, color='var(--fg)')], 'test')
+        self.assertIn('width:0.00%', html)
+        self.assertIn('width:100.00%', html)
 
     def test_brand_and_slide_count(self):
         html = self.render([dict(type='cold', big=str(i), headline='h') for i in range(12)])

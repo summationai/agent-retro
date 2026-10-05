@@ -18,7 +18,7 @@ import json, os, re, sys, collections
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from redact import scrub_secrets  # noqa: E402
+from redact import scrub_secrets, scrub_tree  # noqa: E402
 
 
 R = lambda p: re.compile(p, re.I)
@@ -144,7 +144,7 @@ def main(src, out):
     # rows carry prompt text for the deck writer to look up; redact it (then truncate) on the way out
     rows = [dict(r, text=scrub_secrets(r['text']), next_text=scrub_secrets(r['next_text'])[:400] if r['next_text'] else None) for r in rows]
     with open(out, 'w') as f:
-        json.dump(dict(summary=result, rows=rows), f, indent=1)
+        json.dump(scrub_tree(dict(summary=result, rows=rows)), f, indent=1)
     print(json.dumps({k: result[k] for k in ('prompts', 'judged', 'smooth_rate', 'reaction_counts', 'infra_share')}, indent=1))
     print('feature lifts:', {f: (v['with_n'], v['lift']) for f, v in by_feature.items()})
 

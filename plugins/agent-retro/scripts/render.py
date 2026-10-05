@@ -7,7 +7,7 @@ Each slide is {"type": <component>, ...fields}. Components and their fields are 
 reference/deck-spec.md. The renderer owns the look (riso-print palette, motion, layout); content comes only
 from slides.json, so every number on screen is one the writer put there.
 """
-import html, json, os, random, sys
+import html, json, math, os, random, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 AGENT = {'claude-code': ('Claude Code', 'var(--claude)'), 'codex': ('Codex', 'var(--codex)'),
@@ -28,6 +28,23 @@ DEFAULT_BG = {'cold': 'ink', 'bignum': 'yellow', 'lineup': 'paper', 'ranking': '
               'outro': 'ink', 'coach': None}
 
 e = lambda s: html.escape(str(s if s is not None else ''), quote=True)
+
+
+def number(value, path, maximum=None, integer=False):
+    if (type(value) not in (int, float) or not math.isfinite(value) or value < 0
+            or (maximum is not None and value > maximum)
+            or (integer and int(value) != value)):
+        raise ValueError(f'{path} must be a finite nonnegative {"integer" if integer else "number"}'
+                         + (f' <= {maximum}' if maximum is not None else ''))
+    return value
+
+
+def segment_color(segment):
+    color = AGENT.get(segment.get('agent'), (None, segment.get('color', 'var(--fg)')))[1]
+    if not isinstance(color, str) or not re.fullmatch(
+            r'#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?|var\(--(?:fg|ink|paper|pink|blue|yellow|green|orange|claude|codex|chatgpt|claudeai)\)', color):
+        raise ValueError('segment.color must be a hex color or a supported palette variable')
+    return e(color)
 
 
 def fmt_int(v):
@@ -54,9 +71,9 @@ def dots(rng):
 
 
 def seg_bar(segments, label):
-    total = sum(max(0, s['value']) for s in segments) or 1
-    parts = ''.join(f'<i style="width:{max(0.3, 100 * s["value"] / total):.2f}%;background:{AGENT.get(s.get("agent"), (0, s.get("color", "var(--fg)")))[1]}"></i>' for s in segments)
-    leg = ''.join(f'<span style="--c:{AGENT.get(s.get("agent"), (0, s.get("color", "var(--fg)")))[1]}">{e(s["label"])}</span>' for s in segments)
+    total = sum(number(s['value'], 'segment.value') for s in segments) or 1
+    parts = ''.join(f'<i style="width:{100 * s["value"] / total:.2f}%;background:{segment_color(s)}"></i>' for s in segments)
+    leg = ''.join(f'<span style="--c:{segment_color(s)}">{e(s["label"])}</span>' for s in segments)
     return f'<div style="display:grid;gap:8px">{f"<div class=zoomlabel>{e(label)}</div>" if label else ""}<div class="bar" role="img" aria-label="{e(label or "")}">{parts}</div><div class="legend">{leg}</div></div>'
 
 
@@ -69,8 +86,9 @@ def tally(items, start):
 def compare_rows(rows):
     out = '<div class="ba" role="img" aria-label="' + e('; '.join(f'{r["label"]}: {r["pct"]}%' for r in rows)) + '">'
     for i, r in enumerate(rows):
+        number(r['pct'], f'rows[{i}].pct', maximum=100)
         col = 'var(--fg)' if i == 0 else 'color-mix(in srgb, var(--fg) 40%, transparent)'
-        out += f'<div class="row"><span>{e(r["label"])}</span><div class="track"><i style="--w:{r["pct"]}%;--c:{col}"></i></div><b>{e(r["pct"])}% <small>{e(r.get("n_label", ""))}</small></b></div>'
+        out += f'<div class="row"><span>{e(r["label"])}</span><div class="track"><i style="--w:{e(r["pct"])}%;--c:{col}"></i></div><b>{e(r["pct"])}% <small>{e(r.get("n_label", ""))}</small></b></div>'
     return out + '</div>'
 
 
@@ -84,6 +102,7 @@ def render_slide(s, rng):
         return eb + f'<div class="huge rv pop" style="--i:1">{e(s["big"])}</div>' + h2(2) + lede(3) + small(4) + \
             '<div class="hint rv" style="--i:5"><b>↓</b> scroll, swipe, or press space</div>'
     if t == 'bignum':
+        number(s['value'], 'value', integer=True)
         body = eb + f'<div class="bignum riso num rv" style="--i:1" data-count="{int(s["value"])}">{fmt_int(s["value"])}</div>' + lede(2)
         for i, b in enumerate(s.get('bars', [])):
             body += f'<div class="rv" style="--i:{3 + i}">' + seg_bar(b['segments'], b.get('label')) + '</div>'
@@ -95,10 +114,10 @@ def render_slide(s, rng):
             f'<p>{e(a.get("line", ""))}</p><span class="surf">{e(a.get("surfaces", ""))}</span></div>' for i, a in enumerate(s['acts']))
         return eb + h2(1) + f'<div class="lineup">{acts}</div>' + small(6)
     if t == 'ranking':
-        mx = max(sum(g['value'] for g in r['segments']) for r in s['rows']) or 1
+        mx = max(sum(number(g['value'], 'segment.value') for g in r['segments']) for r in s['rows']) or 1
         rows = ''
         for i, r in enumerate(s['rows']):
-            segs = ''.join(f'<i style="width:{max(0.25, 100 * g["value"] / mx):.2f}%;background:{AGENT.get(g.get("agent"), (0, "var(--fg)"))[1]}"></i>' for g in r['segments'])
+            segs = ''.join(f'<i style="width:{100 * g["value"] / mx:.2f}%;background:{AGENT.get(g.get("agent"), (0, "var(--fg)"))[1]}"></i>' for g in r['segments'])
             rows += f'<li class="rv" style="--i:{2 + i}"><span class="r">{i + 1}</span><span class="n">{e(r["name"])}</span><span class="v">{e(r["value_label"])}</span><span class="track">{segs}</span>' + (f'<span class="meta">{e(r["meta"])}</span>' if r.get('meta') else '') + '</li>'
         agents = sorted({g.get('agent') for r in s['rows'] for g in r['segments'] if g.get('agent')})
         leg = '<div class="legend rv" style="--i:9">' + ''.join(f'<span style="--c:{AGENT[a][1]}">{AGENT[a][0]}</span>' for a in agents if a in AGENT) + '</div>' if len(agents) > 1 else ''
@@ -114,7 +133,9 @@ def render_slide(s, rng):
         return eb + h2(1) + f'<ol class="tl rv" style="--i:2">{items}</ol>' + small(3)
     if t == 'heatmap':
         days = s['days']; hours = s.get('hours', list(range(8, 23))); cells = s['cells']
-        mx = max((sum(v.values()) for v in cells.values()), default=1) or 1
+        for h in hours:
+            number(h, 'hours[]', maximum=23, integer=True)
+        mx = max((sum(number(n, 'cells count') for n in v.values()) for v in cells.values()), default=1) or 1
         g = '<span></span>' + ''.join(f'<span class="d{" wk" if d.get("weekend") else ""}">{e(d["label"])}</span>' for d in days)
         k = 0
         for h in hours:
@@ -318,4 +339,7 @@ def main(src, out):
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.exit(__doc__)
-    main(sys.argv[1], sys.argv[2])
+    try:
+        main(sys.argv[1], sys.argv[2])
+    except ValueError as exc:
+        sys.exit(f'Invalid deck: {exc}')
