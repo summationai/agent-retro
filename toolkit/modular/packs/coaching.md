@@ -12,8 +12,7 @@
 
 ## Evidence rules
 
-1. **Run the signals** on the data file the entry prompt gives you:
-   `python3 ~/agent-outputs/agent-retro/modular/coaching_signals.py <data.json> <build>/coaching_signals.json`
+1. **Read `BUILD/coaching.json`** from canonical preparation; its rows are already redacted.
    For every prompt, it reads the reaction of the *next* message in the same session:
    - `praise`, `proceed`: it worked
    - `correct`: an extra round-trip
@@ -25,10 +24,7 @@
 2. **Two kinds of "worked", and every card uses at least one:**
    - **Internal:** my own reaction shows it worked (praise or proceed), or took extra round-trips (correct or retry). Read the actual prompt, the next message, and the neighbouring turns before you explain *why*. Don't explain from the feature tags alone.
    - **External:** a well-known practice, from the list below, that explains the pattern or suggests the tweak.
-3. **Label confidence on every card:**
-   - `strong`: 20 or more prompts, a gap of 15 points or more, and the pattern holds when you read the examples
-   - `suggestive`: 8–19 prompts, or a smaller gap
-   - `anecdote`: fewer than 8 prompts, or a single striking moment. An anecdote can still be a card if it's vivid, but the card says it's one moment.
+3. **Label confidence** using the computed feature confidence in `coaching.json`. Both comparison groups must meet the sample threshold (20 for strong, 8 for early). Small samples are anecdotes; a missing comparison group is not a measurable lift. Preserve evidence JSON pointers when composing the slides.
 4. **Link to stats:** if the stats pack is on, read `cards/stats.json`. When a stat card shows the same behavior, add its id to `evidence.cites` and set `pairs_with`, so the composer can place the tip right after that stat. Coaching can also *reuse* a stat as its evidence instead of repeating it.
 5. **Correlation isn't causation, and context matters.** Debugging sessions correct more often than planning sessions whatever the prompt style. Before blaming (or crediting) a feature, check what kind of work it was.
 6. **Privacy:**
@@ -76,4 +72,4 @@ Use these to explain *why* something worked or how to make it even better. Plain
 
 ## Output
 
-Write `<build>/cards/coaching.json`: an array of cards in the shared format (see `README.md`), with a score on each card. Then append the lenses you used to the memory file.
+Write `<build>/cards/coaching.json`: an array of cards in the shared format (see `README.md`), with a score on each card. Include lens ids in the final slides; finalization records history.

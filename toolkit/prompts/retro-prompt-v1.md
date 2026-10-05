@@ -1,3 +1,6 @@
+> **Historical reference.** Do not run this older raw-data workflow. Use the plugin or
+> `toolkit/share/retro-paste-in.md`, which prepares redacted data before the agent reads it.
+
 # Agent Retro — weekly prompt
 
 Make me this week's **Agent Retro**: a playful, multi-slide infographic of how I used Claude Code over the **last 7 days**, published as a private page. It should surprise me. If I ran it on the same data twice, I'd want different insights at least some of the time. When the data is new, I want new slides alongside a few returning favorites, not just the same deck with new numbers.

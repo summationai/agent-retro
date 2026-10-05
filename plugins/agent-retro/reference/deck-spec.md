@@ -1,6 +1,20 @@
 # Agent Retro: deck spec
 
-A Retro is **12 slides**: 8 stats slides (the fun part) and 4 coaching slides (small teachable moments). Each coaching slide sits right after the stat it grows out of, wherever that's possible. The renderer (`scripts/render.py`) owns the look. Your job is to choose the story and write `slides.json`.
+The default Retro is **12 slides**: 8 stats slides (the fun part) and 4 coaching slides (small teachable moments). Each coaching slide sits right after the stat it grows out of, wherever that's possible. The renderer (`scripts/render.py`) owns the look. Your job is to choose the story and write `slides.json`.
+
+## Profiles and validation
+
+`slides.json` uses `schema_version: 1` and `profile: "default-12"` (the default).
+The renderer validates component fields, numeric bounds, quote privacy/length, and the default slot plan.
+Finalization also checks evidence references and the total-token slide against the measured data.
+
+Read `BUILD/run.json` first. If `presentation_profile` is `limited`, preparation has written a
+short starter `slides.json`. Refine it using only available measurements and keep `profile: "limited"`.
+This profile omits coaching and archetypes and allows fewer facts and zero tries. It is used when
+there are fewer than eight human prompts or eight judged reactions. Do not force the 12-slot plan.
+
+The modular edition can use `profile: "custom"` for a different layout when sufficient data exists.
+Component and quote validation still applies. Numerical prose still needs the writer's number pass.
 
 ## The 12 slots
 
@@ -41,7 +55,7 @@ A Retro is **12 slides**: 8 stats slides (the fun part) and 4 coaching slides (s
 
 ## Coaching moments (menu)
 
-Work from `coaching.json` (the summary plus per-prompt rows) and the prompts themselves (`prompts.txt`). **Read the actual prompt and the reply that followed before explaining why.**
+Work from `coaching.json` (the summary plus per-prompt rows) and the prompts themselves (`prompts.txt`). **Read the actual prompt and the next user message before explaining why.** The extractor does not supply assistant replies to the deck writer. Stable prompt IDs are shared by the digest and coaching rows; `next_id` identifies the next user message.
 
 - **Win: your secret sauce.** The feature with the biggest positive lift, for example "with a boundary: 20/20 vs. 79%". Use a `compare` stat.
 - **Win: say what done looks like.** Use `defines_done`.
@@ -54,9 +68,12 @@ Work from `coaching.json` (the summary plus per-prompt rows) and the prompts the
 - **Level-up: reset button.** A tangled correction chain would have gone quicker as a fresh session with a crisp restatement.
 
 **Confidence chip:**
-- "strong signal": 20 or more prompts, a gap of 15 points or more, and the pattern holds when you read the examples.
-- "early signal": 8–19 prompts.
-- "small sample · n" or "one moment": fewer than 8 prompts, or a single story.
+- Use `coaching.summary.by_feature.<feature>.confidence` for feature comparisons.
+- "strong signal": both groups have at least 20 judged prompts, a gap of 15 points or more, and no reversal in adequately sampled agent groups. Still read the examples before explaining the pattern.
+- "early signal": both groups have at least 8 judged prompts and the comparison does not qualify as strong.
+- "small sample · n": the smaller group has fewer than 8 judged prompts.
+- "one moment": a single grounded story. "insufficient comparison" means choose another comparison or use a single story; do not manufacture a percentage lift.
+- These labels describe correlations, not causal effects; repeated prompts within one session are not independent experiments.
 
 **The "why" library** (plain language):
 1. Say what done looks like.
@@ -85,6 +102,8 @@ Work from `coaching.json` (the summary plus per-prompt rows) and the prompts the
   - Every number must come from `stats.json`, `coaching.json`, or a count you make from the data files. Never invent one.
   - No population percentiles ("top 10% of users"). Compare to your own past weeks, a named baseline, or obviously playful framing.
   - Token counts differ across vendors, so say so in small print wherever you compare them.
+  - Read `stats.diagnostics` and `stats.provenance`. A source marked `partial` has incomplete measurements; label its totals as partial. `usage_unavailable` means unknown usage, never zero activity.
+  - Preserve source coverage labels, including "app history, may be incomplete". Self-report content is flavor only and never supports a number.
   - Coaching signals are proxies (your next message's reaction). The outro footer says so.
 - **Privacy:**
   - Quotes are 12 words or fewer.
@@ -95,12 +114,19 @@ Work from `coaching.json` (the summary plus per-prompt rows) and the prompts the
 ## Components (`slides.json`)
 
 ```json
-{"title": "Agent Retro, <Mon D>–<D>", "brand": "Agent Retro", "seed": 1234, "slides": [ ... ]}
+{"schema_version": 1, "profile": "default-12", "title": "Agent Retro, <Mon D>–<D>", "brand": "Agent Retro", "seed": 1234, "slides": [ ... ]}
 ```
 
 Optional on every slide:
 - `"bg"`: one of `ink`, `blue`, `yellow`, `paper`, `pink`, `orange`, `green`. The renderer otherwise picks it, and never uses the same one twice in a row.
 - `"eyebrow"`: a small label above the headline.
+- `"lens"`: the lens ID to record in history.
+- `"evidence_refs"`: JSON pointers into the measured outputs, such as `"/stats/tokens/total"` or
+  `"/coaching/summary/by_feature/sets_constraints"`. Required on default-profile coaching slides.
+  Strong/early confidence must reference a feature comparison with at least that computed confidence.
+  For one moment, reference its row (for example `"/coaching/rows/0"`); use stable IDs to find the row first.
+
+Explicit segment colors must be `#rgb`, `#rrggbb`, or a supported palette variable such as `var(--fg)`. Percentages are numeric values in 0–100; counts are finite and nonnegative.
 
 Agent keys are `claude-code`, `codex`, `chatgpt` and `claude-ai`, which render in their fixed colors: pink, blue, green and orange.
 

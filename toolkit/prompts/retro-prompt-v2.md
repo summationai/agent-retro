@@ -1,3 +1,6 @@
+> **Historical reference.** Do not run this older raw-data workflow. Use the plugin or
+> `toolkit/share/retro-paste-in.md`, which prepares redacted data before the agent reads it.
+
 # Agent Retro — weekly prompt (v2: Claude Code, Codex and chat exports)
 
 > v2 builds on v1 (`retro-prompt-v1.md`, kept unchanged). It adds Codex and ChatGPT alongside Claude Code, so the deck covers every AI agent I used this week. Look, tone, and the rotation and honesty rules all carry over from v1.

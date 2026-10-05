@@ -10,3 +10,15 @@ builds/
 *.json.tmp
 .DS_Store
 __pycache__/
+
+# Local development environments and explicitly requested debug outputs
+.venv/
+.test-repo-*/
+retro_data.json
+data.json
+stats.json
+coaching.json
+coaching_signals.json
+slides.json
+prompts.txt
+run.json

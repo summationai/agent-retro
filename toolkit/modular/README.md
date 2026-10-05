@@ -1,6 +1,6 @@
 # Agent Retro: modular edition
 
-The prompt editions (v1, v2 and the share file) keep working exactly as before. This folder is the next step: **content packs** that each produce slide **cards**, and a **composer** that turns the enabled packs' cards into one deck.
+The v1 and v2 prompts are historical references. The share file is generated from the canonical plugin pipeline. This folder is the next step: **content packs** that each produce slide **cards**, and a **composer** that turns the enabled packs' cards into one deck.
 
 ```
 data ──► pack: stats ───────► cards/stats.json ─────┐
@@ -46,6 +46,4 @@ Each pack writes a JSON array of cards to `<build>/cards/<pack>.json`:
 
 ## Memory
 
-The modular edition keeps its own history next to the existing files: `~/agent-outputs/agent-retro/modular-runs.jsonl`, plus `coaching-lenses.md`.
-
-The existing stats lens catalog (`lenses.md`) is shared with the stats pack.
+All editions use `RETRO_HOME/runs.jsonl`, written by `finalize.py`. Compatibility measurement scripts delegate to the plugin; they are not independent copies.

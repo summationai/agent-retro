@@ -67,11 +67,39 @@ class PipelineTest(unittest.TestCase):
         summary = json.loads(read(self.dir, 'coaching.json'))['summary']
         self.assertGreaterEqual(summary['reaction_counts'].get('proceed', 0), len(SECRETS))
 
+    def test_metadata_and_derived_words_are_redacted(self):
+        secret = 'orchid' + 'secret'
+        email = 'audit.person' + '@example.org'
+        d = json.loads(read(self.data))
+        d['prompts'][0].update(text='password=' + secret + ' fix it', project=email, session=email)
+        d['usage'][0].update(project=email, branch='fix/' + email, model=email)
+        d['sources'] = {email: email + '.zip'}
+        d['tools'] = [dict(name='Edit', file_path='/tmp/' + email, skill=email)]
+        d['sessions'] = {email: dict(first=1, last=2, project=email, agent='codex', prompts=1)}
+        with open(self.data, 'w') as f:
+            json.dump(d, f)
+        console = self.run_scripts()
+        for output in [console] + [read(self.dir, n) for n in ('stats.json', 'coaching.json', 'prompts.txt')]:
+            self.assertNotIn(secret, output)
+            self.assertNotIn(email, output)
+
+    def test_self_report_and_coverage_reach_safe_outputs(self):
+        d = json.loads(read(self.data))
+        d['self_report'] = dict(one_surprising_observation='hello audit@example.org')
+        d['provenance'] = dict(chatgpt=dict(coverage=dict(source='app history', scope_note='partial')))
+        with open(self.data, 'w') as f:
+            json.dump(d, f)
+        self.run_scripts()
+        result = json.loads(read(self.dir, 'stats.json'))
+        self.assertTrue(result['self_report']['flavor_only'])
+        self.assertEqual(result['self_report']['content']['one_surprising_observation'], 'hello [email]')
+        self.assertEqual(result['provenance']['chatgpt']['coverage']['scope_note'], 'partial')
+
     def test_cleanup_removes_raw_files_only(self):
         self.run_scripts()
         subprocess.run([sys.executable, cleanup, self.dir], check=True, capture_output=True)
         left = sorted(os.listdir(self.dir))
-        self.assertEqual(left, ['prompts.txt', 'stats.json'])
+        self.assertEqual(left, ['coaching.json', 'prompts.txt', 'stats.json'])
 
 
 if __name__ == '__main__':

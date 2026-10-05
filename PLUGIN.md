@@ -34,6 +34,8 @@ In Claude Code, run `/retro` (or `/agent-retro:retro` if another plugin also has
 | `chatgpt` | Ways to add your ChatGPT history, with prompts you can paste |
 | `help` | Show the options |
 
+With fewer than eight human prompts or eight judged reactions, you get a short factual recap with no coaching or archetype.
+
 It takes a few minutes. You get a private link if your agent can publish pages, or a local HTML file otherwise. Everything is saved in `~/agent-retro/`, so next week's Retro can compare against this one and rotate in new slides. Set `AGENT_RETRO_HOME` to use a different folder.
 
 If Codex's sandbox blocks reading `~/.claude`, `~/.codex` or `~/Downloads`, or writing to `~/agent-retro`, approve the request when it asks. The Retro needs those folders to count your week and remember past ones.
@@ -43,7 +45,7 @@ If Codex's sandbox blocks reading `~/.claude`, `~/.codex` or `~/Downloads`, or w
 - **Everything is read locally:** `~/.claude/projects`, `~/.codex`, and export zips you put in Downloads.
 - **Your agent sees redacted text only.** It reads a redacted digest of your prompts to write the deck, and sends that to its model provider as it would for any other task. Nothing else leaves your machine, except the finished deck if you publish it as a *private* page that only you can open until you share it.
 - **Sensitive text stays out of the deck.** Quotes are short. Before the deck writer sees your prompts, the scripts redact API keys, tokens, private keys, credentials in URLs, password-like strings, emails, phone and card numbers, and your home-folder name.
-- **Raw prompt text is deleted.** The working files that contain it are removed at the end of each run.
+- **Raw prompt text stays in memory.** Preparation creates a unique private build directory and writes only redacted measurements. Interrupted runs do not leave raw transcript files.
 
 ## How the coaching works
 

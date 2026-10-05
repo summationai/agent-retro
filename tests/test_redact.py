@@ -1,7 +1,7 @@
 import unittest
 
 import support  # noqa: F401  (puts the plugin scripts on sys.path)
-from redact import REDACTIONS, _luhn, scrub_secrets
+from redact import REDACTIONS, _luhn, scrub_secrets, scrub_tree
 from support import BENIGN, SECRETS
 
 
@@ -49,6 +49,11 @@ class RedactTest(unittest.TestCase):
         self.assertTrue(_luhn('4111111111111111'))
         self.assertFalse(_luhn('4111111111111112'))
         self.assertEqual(scrub_secrets('ref 4111 1111 1111 1112'), 'ref 4111 1111 1111 1112')
+
+    def test_mapping_key_collisions_preserve_every_value(self):
+        result = scrub_tree({'a@example.org': 1, 'b@example.org': 2, '[email] (2)': 3})
+        self.assertEqual(sorted(result.values()), [1, 2, 3])
+        self.assertNotIn('@', str(result))
 
     def test_non_text_passes_through(self):
         for value in (None, '', 42):

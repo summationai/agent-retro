@@ -71,7 +71,7 @@ class ExtractTest(unittest.TestCase):
     def run_extract(self, **env):
         out = os.path.join(self.home, 'out.json')
         subprocess.run([sys.executable, EXTRACT, out], check=True, capture_output=True, cwd=self.home,
-                       env=dict(os.environ, HOME=self.home, **env))
+                       env=dict(dict(os.environ, HOME=self.home, RETRO_SOURCES='all', RETRO_DAYS='7'), **env))
         with open(out) as f:
             return json.load(f)
 

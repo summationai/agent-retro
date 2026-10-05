@@ -1,0 +1,2 @@
+# Optional browser tests only; the plugin runtime uses the Python standard library.
+playwright==1.60.0
