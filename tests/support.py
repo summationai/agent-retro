@@ -23,6 +23,12 @@ def j(*parts):
     return ''.join(parts)
 
 
+def credential_prompt(secret, task='fix this'):
+    """A prompt that pastes a credential, the way users do.
+    The value is a synthetic fixture, never a real secret."""
+    return f'password={secret} {task}'.rstrip()
+
+
 # (kind, text containing the secret, the fragment that must never survive)
 SECRETS = [
     ('aws access key id', j('use AK', 'IA', 'Z7Q4XW2N8R5T1Y3U', ' for the bucket'), 'Z7Q4XW2N8R5T1Y3U'),

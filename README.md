@@ -27,7 +27,7 @@ codex plugin add agent-retro@agent-retro
 
 Then ask Codex to "build my Agent Retro" (or mention `$agent-retro:retro`).
 
-Add `help` for the options: `only=<agents>`, `days=N`, and `chatgpt`, which shows how to add ChatGPT history. See [PLUGIN.md](PLUGIN.md) for details.
+Add `help` for the options: `only=<agents>`, `days=N`, and `chatgpt`, which shows how to add ChatGPT history. See the [plugin README](plugins/agent-retro/README.md) for details.
 
 ## What's in here
 

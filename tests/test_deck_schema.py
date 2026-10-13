@@ -36,7 +36,7 @@ class DeckSchemaTest(unittest.TestCase):
                 validate_deck(deck)
 
     def test_quote_limits_and_privacy(self):
-        for text in ['word '*13,'[email]','hello audit@example.org','password='+'orchidsecret']:
+        for text in ['word '*13,'[email]','hello audit@example.org',support.credential_prompt('orchidsecret', '')]:
             with self.subTest(text=text),self.assertRaises(ValueError):
                 validate_deck(dict(title='Quote',profile='custom',slides=[dict(type='quote',headline='Quote',quote=text)]))
 
