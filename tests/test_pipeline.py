@@ -71,7 +71,7 @@ class PipelineTest(unittest.TestCase):
         secret = 'orchid' + 'secret'
         email = 'audit.person' + '@example.org'
         d = json.loads(read(self.data))
-        d['prompts'][0].update(text='password=' + secret + ' fix it', project=email, session=email)
+        d['prompts'][0].update(text=support.credential_prompt(secret, 'fix it'), project=email, session=email)
         d['usage'][0].update(project=email, branch='fix/' + email, model=email)
         d['sources'] = {email: email + '.zip'}
         d['tools'] = [dict(name='Edit', file_path='/tmp/' + email, skill=email)]

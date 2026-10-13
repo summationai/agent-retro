@@ -27,7 +27,7 @@ class PrepareTest(unittest.TestCase):
         self.secret = 'orchid' + 'secret'
         write_jsonl(str(self.home/'.codex/sessions/one.jsonl'), [
             event('session_meta',dict(id='one',cwd='/opt/retro-test',originator='codex-tui'),120),
-            user('password=' + self.secret + ' fix this')])
+            user(support.credential_prompt(self.secret))])
         self.settings = config(str(self.home),NOW,7,'codex')
 
     def tearDown(self):
@@ -136,7 +136,7 @@ class PrepareTest(unittest.TestCase):
         subprocess.run([sys.executable,str(portable),'--finalize',str(build)],check=True,capture_output=True)
         self.assertEqual(len(list(output.glob('retro-*.html'))),1)
         raw=Path(self.tmp.name)/'raw.json'
-        support.data_file(raw,support.prompt_rows(['password='+self.secret+' fix this']*2))
+        support.data_file(raw,support.prompt_rows([support.credential_prompt(self.secret)]*2))
         for module in ['stats','coaching_signals']:
             out=Path(self.tmp.name)/(module+'.json')
             subprocess.run([sys.executable,str(Path(support.ROOT)/'toolkit/modular'/(module+'.py')),str(raw),str(out)],check=True,capture_output=True)
