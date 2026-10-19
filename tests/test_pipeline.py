@@ -101,6 +101,29 @@ class PipelineTest(unittest.TestCase):
         left = sorted(os.listdir(self.dir))
         self.assertEqual(left, ['coaching.json', 'prompts.txt', 'stats.json'])
 
+    def test_agent_launches_form_their_own_bucket(self):
+        with open(self.data) as f:
+            d = json.load(f)
+        ts = d['prompts'][0]['ts']
+        codex = lambda model, transcript=False: dict(agent='codex', via='autoreview', model=model, effort='high', transcript=transcript)
+        d['launches'] = [
+            dict(ts=ts, caller='claude-code', session='s1', project='demo', workspace='demo', callees=[codex('big')], seconds=120, status='completed'),
+            dict(ts=ts, caller='claude-code', session='s1', project='demo', workspace='demo', callees=[codex(None)], seconds=None, status=None),
+            dict(ts=ts, caller='claude-code', session='s1', project='demo', workspace='demo', callees=[codex('big', True), codex('small')], seconds=60, status='failed'),
+        ]
+        d['usage'].append(dict(d['usage'][0], agent='codex', headless=True))
+        with open(self.data, 'w') as f:
+            json.dump(d, f)
+        self.run_scripts()
+        out = json.loads(read(self.dir, 'stats.json'))
+        route = out['delegation']['routes']['claude-code->codex']
+        self.assertEqual((out['delegation']['launches'], out['delegation']['minutes']), (3, 3.0))
+        self.assertEqual({k: route[k] for k in ('calls', 'timed_calls', 'minutes', 'failed', 'no_token_record')},
+                         dict(calls=4, timed_calls=2, minutes=3.0, failed=1, no_token_record=3))
+        self.assertEqual(route['models'], {'big': 2, 'not recorded': 1, 'small': 1})
+        self.assertEqual(out['agents']['codex']['launched_by_agents'], dict(calls=4, minutes=3.0))
+        self.assertGreater(out['delegation']['headless_tokens']['codex'], 0)
+
 
 if __name__ == '__main__':
     unittest.main()

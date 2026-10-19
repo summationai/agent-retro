@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 
 import support
-from extract import config, extract, Extractor
+from extract import agent_launches, config, extract, Extractor
 from test_extract import iso, write_jsonl
 
 NOW = 1800000000
@@ -183,3 +183,57 @@ class ExtractEdgesTest(unittest.TestCase):
         self.run_extract('codex')
         self.rollout.unlink()
         self.assertEqual(self.run_extract('codex')['prompts'],[])
+
+    def test_agent_launches_record_callee_and_wall_time(self):
+        cwd = '/opt/retro-first'
+        bash = lambda tid, command, age: dict(type='assistant', sessionId='cc', timestamp=iso(NOW - age), cwd=cwd, message=dict(
+            id='m' + tid, content=[dict(type='tool_use', id=tid, name='Bash', input=dict(command=command))]))
+        result = lambda tid, age, **kw: dict(type='user', sessionId='cc', timestamp=iso(NOW - age), cwd=cwd, message=dict(
+            role='user', content=[dict(type='tool_result', tool_use_id=tid, content='done')]), **kw)
+        write_jsonl(str(self.home / '.claude/projects/-x/cc.jsonl'), [
+            bash('t1', 'git log -1 && AUTOREVIEW_CODEX_MODEL=big ~/.claude/skills/autoreview/scripts/autoreview --mode commit --thinking high', 600),
+            result('t1', 599, toolUseResult=dict(backgroundTaskId='b1')),
+            dict(type='queue-operation', operation='enqueue', timestamp=iso(NOW - 480), sessionId='cc',
+                 content='<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>t1</tool-use-id>\n<status>completed</status>'),
+            bash('t2', "codex exec --ephemeral -m small - <<'EOF'\nclaude -p is only prompt text here\nEOF", 300),
+            result('t2', 290),
+            bash('t3', 'codex exec --help; cat scripts/autoreview', 200),
+            result('t3', 199),
+        ])
+        call = lambda age, cmd: event('response_item', dict(type='custom_tool_call', name='exec', call_id='c1',
+                                                            input='text(await tools.exec_command({cmd: %s}))' % json.dumps(cmd)), age)
+        running = lambda age, cid: event('response_item', dict(type='custom_tool_call', name='exec', call_id=cid,
+                                                               input='tools.exec_command({cmd: "claude -p slow"})'), age)
+        self.codex([call(100, 'claude -p "second opinion" --model opus'),
+                    event('response_item', dict(type='custom_tool_call_output', call_id='c1', output=[]), 40),
+                    running(30, 'c2'),
+                    event('response_item', dict(type='custom_tool_call_output', call_id='c2',
+                                                output=[dict(type='input_text', text='Script running with cell ID 4')]), 20)])
+        launches = self.run_extract('claude-code,codex')['launches']
+        summary = [(r['caller'], [(c['agent'], c['via'], c['model'], c['effort'], c['transcript']) for c in r['callees']],
+                    r['seconds'], r['status']) for r in launches]
+        self.assertEqual(summary, [
+            ('claude-code', [('codex', 'autoreview', 'big', 'high', False)], 120, 'completed'),
+            ('claude-code', [('codex', 'cli', 'small', None, False)], 10, 'completed'),
+            ('codex', [('claude-code', 'cli', 'opus', None, True)], 60, 'completed'),
+            ('codex', [('claude-code', 'cli', None, None, True)], None, None),
+        ])
+        self.assertEqual({r['project'] for r in launches}, {'retro-first'})
+        self.assertNotIn('command', json.dumps(launches))
+
+    def test_headless_codex_usage_is_tagged(self):
+        self.meta['payload']['originator'] = 'codex_exec'
+        self.codex([user('review this diff'), event('token_usage_record', dict(response_id='r', usage=dict(input_tokens=10, output_tokens=2)))])
+        d = self.run_extract('codex')
+        self.assertEqual([u['headless'] for u in d['usage']], [True])
+        self.assertEqual(d['prompts'], [])
+
+    def test_launch_parsing_follows_shell_quoting_and_wrappers(self):
+        agents = lambda command: [c['agent'] for c in agent_launches(command)]
+        self.assertEqual(agents('claude -p "review this\nand report defects"'), ['claude-code'])
+        self.assertEqual(agents('echo "notes\ncodex exec is mentioned here"'), [])
+        self.assertEqual(agents('git status  # inspect first\ncodex exec review'), ['codex'])
+        self.assertEqual(agents('bash -lc "codex exec --ephemeral review"'), ['codex'])
+        self.assertEqual(agents('codex exec \\\n  --ephemeral hi\nclaude -p hi'), ['codex', 'claude-code'])
+        self.assertEqual(agents('autoreview --reviewers codex:m:high,claude,droid'), ['codex', 'claude-code'])
+        self.assertEqual(agents('autoreview --dry-run; codex exec --help; codex login'), [])

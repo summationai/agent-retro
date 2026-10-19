@@ -22,7 +22,7 @@ Component and quote validation still applies. Numerical prose still needs the wr
 |---|---|---|---|
 | 1 | stat | `cold` | One striking number or phrase that stands for the week, never a generic title. |
 | 2 | stat | `bignum` | Total tokens, with bars split by agent and by type (cache reads vs. everything else). Mark estimated figures. Add a week-over-week line once there's history. |
-| 3 | stat | `lineup` | Your agents as a band lineup: prompts, sessions, tokens and surfaces, with a one-line role for each. If only one agent was used, show its surfaces (CLI, desktop, IDE) as the acts instead. |
+| 3 | stat | `lineup` | Your agents as a band lineup: prompts, sessions, tokens and surfaces, with a one-line role for each. An agent mostly run by another agent (`agents[*].launched_by_agents`, e.g. Codex reviews started by Claude Code) still gets an act; say who ran it and for how long. If only one agent was used, show its surfaces (CLI, desktop, IDE) as the acts instead. |
 | 4 | **coach** | `coach` | Tied to slot 3, or to any stat so far. |
 | 5 | stat | `ranking` | Top projects, stacked by agent. |
 | 6 | stat | any | A rotating stat lens (A). |
@@ -47,6 +47,7 @@ Component and quote validation still applies. Numerical prose still needs the wr
 - *Weekend band*: weekend prompts by agent.
 - *Relay race*: handoffs between agents, and your longest single-agent streak.
 - *The crew*: subagent token share, top tools and MCP servers.
+- *Agents calling agents*: headless runs one agent started in another (`delegation`): launches, wall-clock minutes, models and efforts per route. Minutes are machine time, not yours. When `no_token_record` covers the calls (autoreview runs Codex with `--ephemeral`), say tokens weren't recorded; never estimate them.
 - *Model mix*: models' share of tokens vs. share of output.
 - *Names you gave things*: the most colorful branch names, the most-edited file.
 - *Marathon*: the longest session.
