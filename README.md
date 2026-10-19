@@ -63,6 +63,11 @@ and missing usage. Codex counter totals are converted to window deltas when poss
 is reported as partial coverage. ChatGPT exports use the active branch when available and keep separate
 branches separate otherwise. Export coverage and self-report flavor are included in redacted stats.
 
+When one agent runs another headlessly (`codex exec`, `claude -p`, or the autoreview helper), the launch
+is recorded with its caller, callee, model, effort and wall-clock time, and reported under `delegation`
+in stats. Command text is not stored. Callee tokens count only when the callee kept a transcript;
+autoreview's Codex runs are `--ephemeral`, so they show up as launches and minutes without tokens.
+
 ## Pipeline maintenance
 
 `prepare.py` creates a unique private build under `AGENT_RETRO_HOME` (default `~/agent-retro`),

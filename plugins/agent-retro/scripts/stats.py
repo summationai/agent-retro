@@ -24,7 +24,8 @@ def measure(d, out):
     U = d['usage']; T = d.get('tools', []); S = d.get('sessions', {})
     S = list(S.values()) if isinstance(S, dict) else S
     tok = lambda u: u['fresh_input'] + u['cache_read'] + u['cache_write'] + u['output']
-    agents = sorted({p['agent'] for p in P} | {u['agent'] for u in U})
+    L = d.get('launches', [])
+    agents = sorted({p['agent'] for p in P} | {u['agent'] for u in U} | {c['agent'] for r in L for c in r['callees']})
 
     by_type = collections.Counter()
     for u in U:
@@ -36,8 +37,33 @@ def measure(d, out):
                         usage_status=d.get('diagnostics', {}).get(a, {}).get('status', 'unverified'),
                         prompts=sum(p['agent'] == a for p in P),
                         sessions=len({p['session'] for p in P if p['agent'] == a}),
-                        surfaces=dict(collections.Counter(p.get('surface') for p in P if p['agent'] == a)))
+                        surfaces=dict(collections.Counter(p.get('surface') for p in P if p['agent'] == a)),
+                        launched_by_agents=dict(calls=sum(c['agent'] == a for r in L for c in r['callees']),
+                                                minutes=round(sum(r['seconds'] or 0 for r in L if any(c['agent'] == a for c in r['callees'])) / 60, 1)))
                 for a in agents}
+
+    # Agents running agents headlessly (e.g. Claude Code running Codex reviews). Minutes are wall clock from the
+    # launching tool call; callee tokens are only in `tokens` when the callee kept a transcript.
+    routes = collections.defaultdict(lambda: dict(calls=0, timed_calls=0, minutes=0.0, failed=0, no_token_record=0,
+                                                  via=collections.Counter(), models=collections.Counter(), efforts=collections.Counter()))
+    for r in L:
+        for key in {f"{r['caller']}->{c['agent']}" for c in r['callees']}:
+            # A launch's wall time is shared by its reviewers, so each route counts it once.
+            routes[key]['timed_calls'] += r['seconds'] is not None
+            routes[key]['minutes'] += (r['seconds'] or 0) / 60
+            routes[key]['failed'] += r['status'] in ('failed', 'error', 'killed')
+        for c in r['callees']:
+            route = routes[f"{r['caller']}->{c['agent']}"]
+            route['calls'] += 1
+            route['no_token_record'] += c['transcript'] is False
+            route['via'][c['via']] += 1
+            route['models'][c['model'] or 'not recorded'] += 1
+            route['efforts'][c['effort'] or 'not recorded'] += 1
+    delegation = dict(launches=len(L), minutes=round(sum(r['seconds'] or 0 for r in L) / 60, 1),
+                      routes={k: dict(v, minutes=round(v['minutes'], 1), via=dict(v['via']), models=dict(v['models'].most_common()),
+                                      efforts=dict(v['efforts'].most_common())) for k, v in sorted(routes.items())},
+                      headless_tokens={a: sum(tok(u) for u in U if u['agent'] == a and u.get('headless')) for a in agents
+                                       if any(u['agent'] == a and u.get('headless') for u in U)})
     models = collections.defaultdict(lambda: collections.Counter())
     for u in U:
         if u.get('model') and u['model'] != '<synthetic>':
@@ -122,7 +148,7 @@ def measure(d, out):
         repeats=repeats, first_words=first.most_common(10), voice=voice, thanks=thanks,
         please_total=sum(len(re.findall(r'\bplease\b', p['text'], re.I)) for p in P),
         handoffs=handoffs, longest_streak=dict(prompts=best[0], agent=best[1]),
-        subagent_token_share=round(side / max(1, total), 4), top_tools=tool_counts.most_common(12), mcp_servers=mcp.most_common(8),
+        subagent_token_share=round(side / max(1, total), 4), delegation=delegation, top_tools=tool_counts.most_common(12), mcp_servers=mcp.most_common(8),
         skills=skills.most_common(8), most_edited_files=files.most_common(5), branches=branches.most_common(8), longest_sessions=sess_len,
     )
     res = scrub_tree(res)
@@ -136,7 +162,8 @@ def measure(d, out):
     write_json(out, res)
     print(json.dumps(dict(prompts=res['prompts'], tokens=total, agents={a: (v['prompts'], v['tokens']) for a, v in res['agents'].items()},
                           top_project=res['projects'][0]['project'] if res['projects'] else None, repeats=[(r['times'], r['text'][:50]) for r in repeats],
-                          handoffs=handoffs, streak=res['longest_streak'], redactions=res['redactions']), indent=1))
+                          handoffs=handoffs, streak=res['longest_streak'], redactions=res['redactions'],
+                          launches={k: (v['calls'], v['minutes']) for k, v in delegation['routes'].items()}), indent=1))
 
     return res
 
