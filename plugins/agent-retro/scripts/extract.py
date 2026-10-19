@@ -10,6 +10,7 @@ import json
 import math
 import os
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -26,6 +27,11 @@ EXPORT_PROJECT = {'chatgpt': 'ChatGPT', 'claude-ai': 'claude.ai'}
 INJECTED = ('<', '# AGENTS.md', 'The following is the Codex agent history')
 TAG_RE = re.compile(r'<(system-reminder|command-[a-z-]+|local-command-[a-z-]+|task-notification|ide_[a-z_]+|pasted_content[^>]*)>.*?</\1[^>]*>', re.S)
 MAX_EXPORT_BYTES = 256 * 1024 * 1024
+AGENT_CLIS = {'codex': 'codex', 'claude': 'claude-code'}
+CODEX_VALUE_FLAGS = {'-m', '--model', '-c', '--config', '-C', '--cd', '-s', '--sandbox', '-a', '--ask-for-approval',
+                     '-p', '--profile', '-i', '--image', '--enable', '--disable', '--add-dir'}
+JS_CMD_RE = re.compile(r'\bcmd\s*:\s*("(?:[^"\\]|\\.)*")')
+NOTICE_RE = re.compile(r'<tool-use-id>([^<]+)</tool-use-id>(?:.*?<status>([^<]+)</status>)?', re.S)
 
 
 class Config(NamedTuple):
@@ -70,6 +76,141 @@ def clean(text):
     return TAG_RE.sub('', text).strip()
 
 
+def _options(args, *names):
+    values = []
+    for i, arg in enumerate(args):
+        for name in names:
+            if arg == name and i + 1 < len(args):
+                values.append(args[i + 1])
+            elif name.startswith('--') and arg.startswith(name + '='):
+                values.append(arg[len(name) + 1:])
+    return values
+
+
+def _autoreview(args, env):
+    # Mirrors autoreview's flags: --engine (default codex), --reviewers engine[:model[:effort]], --panel.
+    if '--dry-run' in args:
+        return []
+    engine = (_options(args, '--engine') or ['codex'])[-1]
+    specs = [s for value in _options(args, '--reviewers') for s in value.split(',') if s]
+    if not specs:
+        specs = [engine, 'codex' if engine == 'claude' else 'claude'] if '--panel' in args else [engine]
+    calls = []
+    for spec in specs:
+        name, model, effort = (spec.split(':') + [None, None])[:3]
+        if name not in AGENT_CLIS:
+            continue
+        for flag, key in (('--model', 'MODEL'), ('--thinking', 'THINKING')):
+            # Values are either engine=value or a bare value for every reviewer; the scoped form wins.
+            chosen = None
+            for value in _options(args, flag):
+                scope, _, scoped = value.partition('=')
+                if scoped and scope == name:
+                    chosen = scoped
+                elif not scoped and chosen is None:
+                    chosen = value
+            chosen = chosen or env.get(f'AUTOREVIEW_{name.upper()}_{key}')
+            if key == 'MODEL':
+                model = model or chosen
+            else:
+                effort = effort or chosen
+        # autoreview runs Codex with --ephemeral, so that side leaves no rollout or token record.
+        calls.append(dict(agent=AGENT_CLIS[name], via='autoreview', model=model, effort=effort,
+                          transcript=False if name == 'codex' else None))
+    return calls
+
+
+def _launch(words, exported):
+    env = dict(exported)
+    if words[:1] == ['export']:
+        exported.update(w.split('=', 1) for w in words[1:] if '=' in w)
+        return []
+    while words and (re.fullmatch(r'[A-Za-z_]\w*=.*', words[0], re.S) or words[0] in ('env', 'command', 'exec', 'nohup', 'time')):
+        key, sep, value = words[0].partition('=')
+        if sep:
+            env[key] = value
+        words = words[1:]
+    if not words or {'-h', '--help', '--version', '-V'} & set(words[1:]):
+        return []
+    program, args = os.path.basename(words[0]), words[1:]
+    if program in ('bash', 'sh', 'zsh') and len(args) >= 2 and re.fullmatch(r'-\w*c\w*', args[0]):
+        return agent_launches(args[1])
+    if program.startswith('python') and args and os.path.basename(args[0]) == 'autoreview':
+        program, args = 'autoreview', args[1:]
+    if program == 'autoreview':
+        return _autoreview(args, env)
+    if program == 'codex':
+        i = 0
+        while i < len(args) and args[i].startswith('-'):
+            i += 2 if args[i] in CODEX_VALUE_FLAGS else 1
+        if i >= len(args) or args[i] not in ('exec', 'e'):
+            return []
+        effort = next((v.split('=', 1)[1].strip().strip('"\'') for v in _options(args, '-c', '--config')
+                       if v.split('=', 1)[0].strip() == 'model_reasoning_effort' and '=' in v), None)
+        return [dict(agent='codex', via='cli', model=(_options(args, '-m', '--model') or [None])[-1], effort=effort,
+                     transcript='--ephemeral' not in args)]
+    if program == 'claude' and {'-p', '--print'} & set(args):
+        return [dict(agent='claude-code', via='cli', model=(_options(args, '--model') or [None])[-1],
+                     effort=(_options(args, '--effort') or [None])[-1], transcript='--no-session-persistence' not in args)]
+    return []
+
+
+def agent_launches(command):
+    """Agent CLIs that a shell command starts headlessly, such as `codex exec`, `claude -p` or autoreview."""
+    if not isinstance(command, str) or not re.search(r'\b(codex|claude|autoreview)\b', command):
+        return []
+    lines, heredoc = [], None
+    for line in command.replace('\\\n', ' ').splitlines():
+        # Heredoc bodies are data (prompts, commit messages, scripts), not commands.
+        if heredoc is not None:
+            heredoc = None if line.strip() == heredoc else heredoc
+            continue
+        marker = re.search(r'<<-?\s*([\'"]?)(\w+)\1', line)
+        heredoc = marker.group(2) if marker else None
+        lines.append(line)
+    try:
+        # Newlines separate commands only outside quotes, so multiline prompts stay one argument.
+        lexer = shlex.shlex('\n'.join(lines), posix=True, punctuation_chars='();&|<>\n')
+        lexer.whitespace, lexer.whitespace_split = ' \t\r', True
+        lexer.commenters = ''  # a comment must not swallow the newline that ends its command
+        words = list(lexer)
+    except ValueError:
+        return []
+    calls, exported, segment = [], {}, []
+    for word in words + [';']:
+        if word and set(word) <= set('();&|<>\n'):
+            calls += _launch(segment, exported) if segment else []
+            segment = []
+        else:
+            segment.append(word)
+    return calls
+
+
+def shell_commands(payload):
+    """Shell command strings inside a Codex tool call, whatever its wrapper."""
+    raw = payload.get('input') if payload.get('type') == 'custom_tool_call' else payload.get('arguments')
+    if payload.get('type') == 'local_shell_call':
+        raw = (payload.get('action') or {}).get('command')
+    if isinstance(raw, list):
+        return [shlex.join(str(x) for x in raw)]
+    if not isinstance(raw, str):
+        return []
+    try:
+        args = json.loads(raw)
+    except ValueError:
+        args = None
+    if isinstance(args, dict):
+        value = args.get('cmd') or args.get('command')
+        return [shlex.join(str(x) for x in value) if isinstance(value, list) else str(value)] if value else []
+    commands = []
+    for literal in JS_CMD_RE.findall(raw):  # code mode wraps calls as tools.exec_command({cmd: "..."})
+        try:
+            commands.append(json.loads(literal))
+        except ValueError:
+            pass
+    return commands
+
+
 def _git(path, *args):
     try:
         result = subprocess.run(['git', '-C', path, *args], capture_output=True, text=True, timeout=5)
@@ -89,6 +230,7 @@ class Extractor:
                             for a in sorted(settings.sources)}
         self._projects, self._prompts, self._tools = {}, set(), set()
         self.codex_checks = []
+        self.launches = {}
 
     def issue(self, agent, code):
         issues = self.diagnostics[agent]['issues']
@@ -180,8 +322,22 @@ class Extractor:
             self.tools.append(row)
             self._tools.add(identity)
 
+    def launch(self, agent, sid, call_id, when, cwd, commands):
+        # One row per tool call that starts another agent CLI; its wall time is filled in when the call finishes.
+        callees = [c for command in commands for c in agent_launches(command)]
+        if not callees or not call_id or (agent, call_id) in self.launches:
+            return
+        project, workspace = self.locate(cwd)
+        self.launches[(agent, call_id)] = dict(ts=when, caller=agent, session=str(sid), project=project, workspace=workspace,
+                                               callees=callees, seconds=None, status=None)
+
+    def finish(self, agent, call_id, when, status):
+        row = self.launches.get((agent, call_id))
+        if row and row['seconds'] is None and status != 'background' and when >= row['ts']:
+            row['seconds'], row['status'] = round(when - row['ts'], 3), status
+
     def usage_row(self, agent, sid, when, cwd, u, model=None, effort=None, side=False, branch=None,
-                  estimated=False, method='response'):
+                  estimated=False, method='response', headless=False):
         fields = ('input_tokens', 'cached_input_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens',
                   'cache_write_input_tokens', 'output_tokens', 'reasoning_output_tokens')
         if not isinstance(u, dict) or any(type(u.get(k, 0)) not in (int, float) or not math.isfinite(u.get(k, 0)) or u.get(k, 0) < 0 for k in fields):
@@ -194,7 +350,7 @@ class Extractor:
             return
         project, workspace = self.locate(cwd) if agent in ('codex', 'claude-code') else (EXPORT_PROJECT[agent], None)
         self.usage.append(dict(ts=when, agent=agent, session=str(sid), project=project, workspace=workspace,
-                               model=model, effort=effort, side=side, branch=branch, estimated=estimated,
+                               model=model, effort=effort, side=side, headless=headless, branch=branch, estimated=estimated,
                                measurement=method, fresh_input=fresh, cache_read=cached,
                                cache_write=u.get('cache_creation_input_tokens', 0) + u.get('cache_write_input_tokens', 0),
                                output=u.get('output_tokens', 0), reasoning=u.get('reasoning_output_tokens', 0)))
@@ -209,6 +365,11 @@ class Extractor:
             for d in self.jsonl(path, agent):
                 try:
                     t, sid = d.get('type'), d.get('sessionId')
+                    if t == 'queue-operation' and '<tool-use-id>' in str(d.get('content')):
+                        # A background command's completion notice; it carries the finish time.
+                        for call_id, status in NOTICE_RE.findall(d['content']):
+                            self.finish(agent, call_id, timestamp(d.get('timestamp')), status or 'completed')
+                        continue
                     if t not in ('user', 'assistant'):
                         continue
                     when = timestamp(d.get('timestamp'))
@@ -226,17 +387,27 @@ class Extractor:
                                 self.add_tool(dict(ts=when, agent=agent, name=b.get('name', ''), file_path=inp.get('file_path'),
                                                    skill=inp.get('skill') if b.get('name') == 'Skill' else None, session=str(sid)),
                                               (agent, sid, b.get('id') or json.dumps(b, sort_keys=True)))
+                                if b.get('name') == 'Bash':
+                                    self.launch(agent, sid, b.get('id'), when, cwd, [inp.get('command')])
                         if (sid, mid) in seen:
                             continue
                         seen.add((sid, mid))
                         u = dict(m.get('usage') or {})
                         u['reasoning_output_tokens'] = (u.get('output_tokens_details') or {}).get('thinking_tokens', 0)
                         self.usage_row(agent, sid, when, cwd, u, m.get('model'), d.get('effort'),
-                                       bool(d.get('isSidechain')), d.get('gitBranch'))
-                        continue
-                    if d.get('isSidechain'):
+                                       bool(d.get('isSidechain')), d.get('gitBranch'), headless=surface == 'sdk-cli')
                         continue
                     content = m.get('content') or ''
+                    if isinstance(content, list):
+                        result = d.get('toolUseResult') if isinstance(d.get('toolUseResult'), dict) else {}
+                        for b in content:
+                            if isinstance(b, dict) and b.get('type') == 'tool_result':
+                                # Background commands finish later, when their completion notice is queued.
+                                background = result.get('backgroundTaskId') or 'running in background with ID' in str(b.get('content'))
+                                self.finish(agent, b.get('tool_use_id'), when,
+                                            'background' if background else 'error' if b.get('is_error') else 'completed')
+                    if d.get('isSidechain'):
+                        continue
                     if isinstance(content, list):
                         if any(isinstance(b, dict) and b.get('type') == 'tool_result' for b in content):
                             continue
@@ -299,7 +470,8 @@ class Extractor:
                         self.malformed(agent)
             events.sort(key=lambda e: e[0])
             src = meta.get('source')
-            auto = isinstance(src, dict) or meta.get('thread_source') == 'guardian_review' or (meta.get('originator') == 'codex_exec' and not history[sid])
+            headless = meta.get('originator') == 'codex_exec' and not history[sid]
+            auto = isinstance(src, dict) or meta.get('thread_source') == 'guardian_review' or headless
             surface = {'codex-tui': 'cli', 'Codex Desktop': 'desktop', 'codex_exec': 'exec'}.get(meta.get('originator'), meta.get('originator'))
             if src == 'vscode' and surface == 'cli':
                 surface = 'vscode'
@@ -319,9 +491,18 @@ class Extractor:
                     if rid not in response_ids:
                         responses.append((when, p.get('usage') or {}, cwd, model, effort))
                         response_ids.add(rid)
-                elif kind == 'response_item' and p.get('type') in ('function_call', 'custom_tool_call'):
-                    self.add_tool(dict(ts=when, agent=agent, name=p.get('name', ''), file_path=None, skill=None, session=sid),
-                                  (agent, sid, p.get('call_id') or json.dumps((when, p), sort_keys=True)))
+                elif kind == 'response_item' and p.get('type') in ('function_call', 'custom_tool_call', 'local_shell_call'):
+                    if p.get('type') != 'local_shell_call':
+                        self.add_tool(dict(ts=when, agent=agent, name=p.get('name', ''), file_path=None, skill=None, session=sid),
+                                      (agent, sid, p.get('call_id') or json.dumps((when, p), sort_keys=True)))
+                    self.launch(agent, sid, p.get('call_id'), when, cwd, shell_commands(p))
+                elif kind == 'response_item' and p.get('type') in ('function_call_output', 'custom_tool_call_output', 'local_shell_call_output'):
+                    # A call that yields while its process runs on has no finish time here; leave it unmeasured.
+                    output = json.dumps(p.get('output'))
+                    code = re.search(r'exit_code\W{0,4}(-?\d+)', output)
+                    running = 'Script running with cell ID' in output or (not code and re.search(r'session_id\W{0,4}\d', output))
+                    self.finish(agent, p.get('call_id'), when,
+                                'background' if running else 'failed' if code and code.group(1) != '0' else 'completed')
                 elif kind == 'response_item' and p.get('type') == 'message' and p.get('role') == 'user':
                     content = p.get('content') or []
                     if not isinstance(content, list):
@@ -350,7 +531,7 @@ class Extractor:
             before = len(self.usage)
             if responses:
                 for when, u, cwd, model, effort in responses:
-                    self.usage_row(agent, sid, when, cwd, u, model, effort, auto or model == 'codex-auto-review')
+                    self.usage_row(agent, sid, when, cwd, u, model, effort, auto or model == 'codex-auto-review', headless=headless)
                     self.session(agent, sid, when, cwd, surface, auto)
             # Cumulative counters provide a window delta, never a lifetime total mislabeled as weekly usage.
             previous = None
@@ -394,7 +575,7 @@ class Extractor:
                 fallback_total += delta.get('input_tokens', 0) + delta.get('output_tokens', 0)
                 if not responses:
                     self.usage_row(agent, sid, when, cwd, delta, model, effort, auto,
-                                   method='counter_delta')
+                                   method='counter_delta', headless=headless)
                     self.session(agent, sid, when, cwd, surface, auto)
             actual = sum(u['fresh_input'] + u['cache_read'] + u['output'] for u in self.usage[before:])
             if responses and counters and comparable and actual != fallback_total:
@@ -562,7 +743,8 @@ class Extractor:
                     sources=self.sources, provenance=self.provenance, diagnostics=self.diagnostics,
                     codex_check=dict(sessions=self.codex_checks), self_report=self.self_report,
                     prompts=sorted(self.prompts, key=lambda r: (r['ts'], r['id'])), automations=self.automations,
-                    usage=self.usage, sessions=self.sessions, tools=self.tools)
+                    usage=self.usage, sessions=self.sessions, tools=self.tools,
+                    launches=sorted(self.launches.values(), key=lambda r: r['ts']))
 
 
 def extract(settings):
